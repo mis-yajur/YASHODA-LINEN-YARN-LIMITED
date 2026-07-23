@@ -122,7 +122,16 @@ export interface StockAdjustment {
 
 import { User } from 'firebase/auth';
 
+export interface AppUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+}
+
 export interface AppState {
+  users: AppUser[];
   scriptUrl?: string;
   departments: Department[];
   suppliers: Supplier[];

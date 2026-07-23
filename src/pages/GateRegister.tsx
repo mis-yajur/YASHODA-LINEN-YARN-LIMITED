@@ -26,53 +26,24 @@ export default function GateRegister() {
         inTime: row.inTime || '',
         outTime: row.outTime || '',
         driverLicenceNo: row.driverLicenceNo || '',
-        contactNoSign: row.contactNoSign || ''
+        contactNoSign: row.contactNoSign || '',
+        securitySign: ''
       };
       await addGateEntry(entry);
     }
     alert('Bulk upload completed');
   };
   const [sheetEntries, setSheetEntries] = useState<Omit<GateEntry, 'id'>[]>([]);
-  const [isLoadingSheet, setIsLoadingSheet] = useState(false);
+  
   
   // Auth State
-  const [needsAuth, setNeedsAuth] = useState(true);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [sheetUrl, setSheetUrl] = useState<string | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
+  
+  
+  
+  
+  
 
-  const loadSheetData = async (type: 'AIPL' | 'Yashoda' = companyType) => {
-    setIsLoadingSheet(true);
-    try {
-      // const spreadsheetId = await getOrCreateSpreadsheet();
-      setSheetUrl(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`);
-      const rows = await fetchRows(spreadsheetId, 'GateEntries_' + type);
-      if (rows && rows.length > 1) { // Skip header row
-        const mappedEntries = rows.slice(1).map(row => ({
-          slNo: row[0] || '',
-          date: row[1] || '',
-          vehicleNo: row[2] || '',
-          partyName: row[3] || '',
-          materialDescription: row[4] || '',
-                    quantityWeight: row[5] || '',
-          unit: row[6] || '',
-          inTime: row[7] || '',
-          outTime: row[8] || '',
-          invoiceNoValue: row[9] || '',
-          driverLicenceNo: row[10] || '',
-          contactNoSign: row[11] || '',
-          securitySign: row[12] || ''
-        }));
-        setSheetEntries(mappedEntries);
-      }
-
-    } catch (e) {
-      console.error("Failed to load sheet data", e);
-    } finally {
-      setIsLoadingSheet(false);
-    }
-  };
+  
 
   
   // Form State
@@ -88,7 +59,7 @@ export default function GateRegister() {
     invoiceNoValue: '',
     driverLicenceNo: '',
     contactNoSign: '',
-    securitySign: ''
+        securitySign: ''
   });
 
   const allEntries = gateEntries.filter(g => (g.companyType === companyType || (!g.companyType && companyType === 'Yashoda'))).reverse();
@@ -121,7 +92,7 @@ export default function GateRegister() {
       const rows = text.split('\n').map(row => row.split(',').map(cell => cell.replace(/^"|"$/g, '').trim()));
       // Assuming headers are on the first row
       if (rows.length > 1) {
-        setIsSyncing(true);
+        
         try {
           let currentSlNo = allEntries.length;
           for (let i = 1; i < rows.length; i++) {
@@ -152,7 +123,7 @@ export default function GateRegister() {
           console.error("Failed to import", e);
           alert("Import failed partially or completely.");
         } finally {
-          setIsSyncing(false);
+          
           // Reset file input
           e.target.value = '';
         }
@@ -185,7 +156,7 @@ export default function GateRegister() {
     //   return;
     // }
 
-    setIsSyncing(true);
+    
     try {
       const slNo = (allEntries.length + 1).toString();
       
@@ -213,7 +184,7 @@ export default function GateRegister() {
       // Still close modal if local save was successful
       setIsModalOpen(false);
     } finally {
-      setIsSyncing(false);
+      
     }
   };
 
@@ -258,13 +229,13 @@ export default function GateRegister() {
       </div>
       <div className="flex border-b border-gray-200 dark:border-zinc-800">
         <button
-          onClick={() => { setCompanyType('Yashoda'); loadSheetData('Yashoda'); }}
+          onClick={() => { setCompanyType('Yashoda');  }}
           className={`flex-1 sm:flex-none text-center px-6 py-3 font-medium text-sm transition-colors border-b-2 ${companyType === 'Yashoda' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
         >
           Yashoda
         </button>
         <button
-          onClick={() => { setCompanyType('AIPL'); loadSheetData('AIPL'); }}
+          onClick={() => { setCompanyType('AIPL');  }}
           className={`flex-1 sm:flex-none text-center px-6 py-3 font-medium text-sm transition-colors border-b-2 ${companyType === 'AIPL' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
         >
           Contractor AIPL
@@ -426,8 +397,8 @@ export default function GateRegister() {
               </div>
               <div className="flex justify-end gap-2 mt-6">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded text-gray-600 dark:text-gray-300">Cancel</button>
-                <button type="submit" disabled={isSyncing} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50">
-                  {isSyncing ? 'Saving...' : 'Save Entry'}
+                <button type="submit"  className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50">
+                  {'Save Entry'}
                 </button>
               </div>
             </form>

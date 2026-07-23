@@ -22,6 +22,7 @@ import Approvals from './pages/Approvals';
 import Reports from './pages/Reports';
 import Notifications from './pages/Notifications';
 import GateRegister from './pages/GateRegister';
+import Login from './pages/Login';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { initApp, isSyncing, user, login, logout } = useApp();

@@ -1,12 +1,31 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db, auth, signInWithGoogle, logout, signInWithEmailAndPassword, createUserWithEmailAndPassword } from '../lib/firebase';
+import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  console.error('Firestore Error: ', error, operationType, path);
+}
 import { AppState, Item, Department, Warehouse, Stock, MaterialIssue, Supplier, MaterialIssueItem, GateEntry, PurchaseRequisition, PurchaseOrder, GRN, StockTransfer, StockAdjustment } from '../types';
 
 import { User } from 'firebase/auth';
 
 interface AppContextType extends AppState {
   login: () => Promise<void>;
+  loginWithEmail: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
     initApp: () => Promise<void>;
+  addUser: (user: any) => Promise<void>;
+  updateUser: (id: string, data: any) => Promise<void>;
   addItem: (item: Omit<Item, 'id'>) => Promise<void>;
   addDepartment: (dept: Omit<Department, 'id'>) => Promise<void>;
   updateDepartment: (id: string, data: Partial<Department>) => Promise<void>;
@@ -31,7 +50,7 @@ const LOCAL_STORAGE_KEY = 'yashoda_inventory_data';
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [state, setState] = useState<AppState>({
-    departments: [],
+    users: [], departments: [],
     suppliers: [],
     items: [],
     warehouses: [],
@@ -44,248 +63,179 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     grns: [],
     stockTransfers: [],
     stockAdjustments: [],
-    isSyncing: false
+    isSyncing: true,
+    user: null
   });
 
   const [initialized, setInitialized] = useState(false);
 
-  useEffect(() => {
-    if (!initialized) return;
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
-      departments: state.departments,
-      suppliers: state.suppliers,
-      items: state.items,
-      warehouses: state.warehouses,
-      stock: state.stock,
-      materialIssues: state.materialIssues,
-      materialIssueItems: state.materialIssueItems,
-      gateEntries: state.gateEntries,
-      prs: state.prs,
-      pos: state.pos,
-      grns: state.grns,
-      stockTransfers: state.stockTransfers,
-      stockAdjustments: state.stockAdjustments
-    }));
-  }, [state, initialized]);
+  
 
-  const syncToSheets = async (actionName: string, sheetName: string, payload: any) => {
-    try {
-      // Basic schema validation to ensure headers match expected types
-      const validatedPayload: Record<string, string> = {};
-      for (const [key, value] of Object.entries(payload)) {
-        if (value === null || value === undefined) {
-          validatedPayload[key] = '';
-        } else if (typeof value === 'object') {
-          validatedPayload[key] = JSON.stringify(value);
-        } else {
-          validatedPayload[key] = String(value);
-        }
-      }
-
-      const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxhbZpukrSNyJEvK_fAg1VgjBd6pIS9e3T_AvygI1CZaII27ggbhtry4rI_abUtgN0A/exec";
-      const savedUrl = state.scriptUrl || localStorage.getItem('yashoda_inventory_script_url') || APP_SCRIPT_URL;
-      if (savedUrl) {
-        // Use Google Apps Script Web App
-        const res = await fetch(savedUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: {
-            // Using text/plain avoids CORS preflight OPTIONS request
-            'Content-Type': 'text/plain;charset=utf-8',
-          },
-          body: JSON.stringify({
-            action: actionName,
-            sheetName: sheetName,
-            data: validatedPayload,
-            spreadsheetId: localStorage.getItem('yashoda_inventory_spreadsheet_id')
-          })
-        });
-        // We cannot read res.json() when mode is no-cors. We assume it successfully triggered if fetch didn't throw.
-        
-      }
-    } catch (e) {
-      console.error('Offline or sync failed. Data saved locally.', e);
-    }
-  };
-
-  const setScriptUrl = (url: string) => {
-    setState(s => ({ ...s, scriptUrl: url }));
-    localStorage.setItem('yashoda_inventory_script_url', url);
-  };
-
+  
+  
+  
   const initApp = async () => {
-    setState(s => ({ ...s, isSyncing: true }));
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
+    onAuthStateChanged(auth, (currentUser) => {
+      setState(s => ({ ...s, user: currentUser, isSyncing: false }));
+      
+      if (currentUser) {
+        setupListeners();
+      } else {
+        // Clear data on logout
         setState(s => ({
           ...s,
-          ...parsed,
-          isSyncing: false
+          users: [], departments: [], suppliers: [], items: [], warehouses: [], stock: [],
+          materialIssues: [], materialIssueItems: [], gateEntries: [], prs: [],
+          pos: [], grns: [], stockTransfers: [], stockAdjustments: []
         }));
-      } else {
-        setState(s => ({ ...s, isSyncing: false }));
       }
-    } catch (e) {
+    });
+  };
+
+  const setupListeners = () => {
+    const collections = [
+      'users',
+      'departments', 'suppliers', 'items', 'warehouses', 'stock',
+      'materialIssues', 'materialIssueItems', 'gateEntries', 'prs',
+      'pos', 'grns', 'stockTransfers', 'stockAdjustments'
+    ];
+    
+    collections.forEach(coll => {
+      onSnapshot(collection(db, coll), (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setState(s => ({ ...s, [coll]: data as any }));
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, coll);
+      });
+    });
+  };
+
+  
+  const login = async () => {
+    try {
+      await signInWithGoogle();
+    } catch(e) {
       console.error(e);
-      setState(s => ({ ...s, isSyncing: false }));
+    }
+  }
+
+  const loginWithEmail = async (email: string, pass: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch(e: any) {
+      if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+        // If not found, try to create it (useful for default admin)
+        await createUserWithEmailAndPassword(auth, email, pass);
+      } else {
+        throw e;
+      }
+    }
+  }
+
+
+  const logoutUser = async () => {
+    await logout();
+  }
+
+
+  
+  const firestoreAdd = async (coll: string, data: any) => {
+    const newId = Date.now().toString() + Math.random().toString(36).substring(7);
+    const itemData = { ...data, id: newId };
+    try {
+      await setDoc(doc(db, coll, newId), itemData);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, coll);
     }
   };
 
-  const addItem = async (item) => {
-    const newItem = { ...item, id: Date.now().toString() };
-    setState(s => ({ ...s, items: [...s.items, newItem] }));
-    await syncToSheets('append', 'items', newItem);
+  const firestoreUpdate = async (coll: string, id: string, data: any) => {
+    try {
+      await updateDoc(doc(db, coll, id), data);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, coll);
+    }
   };
 
-  const addDepartment = async (dept) => {
-    const newDept = { ...dept, id: Date.now().toString() };
-    setState(s => ({ ...s, departments: [...s.departments, newDept] }));
-    await syncToSheets('append', 'departments', newDept);
+  const firestoreDelete = async (coll: string, id: string) => {
+    try {
+      await deleteDoc(doc(db, coll, id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, coll);
+    }
   };
 
-  const updateDepartment = async (id, data) => {
-    setState(s => ({
-      ...s,
-      departments: s.departments.map(d => d.id === id ? { ...d, ...data } : d)
-    }));
-  };
+  const addUser = async (user: any) => firestoreAdd('users', user);
+  const updateUser = async (id: string, data: any) => firestoreUpdate('users', id, data);
+  const addItem = async (item: Omit<Item, 'id'>) => firestoreAdd('items', item);
+  const addDepartment = async (dept: Omit<Department, 'id'>) => firestoreAdd('departments', dept);
+  const updateDepartment = async (id: string, data: Partial<Department>) => firestoreUpdate('departments', id, data);
+  const deleteDepartment = async (id: string) => firestoreDelete('departments', id);
+  const addWarehouse = async (wh: Omit<Warehouse, 'id'>) => firestoreAdd('warehouses', wh);
+  const updateWarehouse = async (id: string, data: Partial<Warehouse>) => firestoreUpdate('warehouses', id, data);
+  const deleteWarehouse = async (id: string) => firestoreDelete('warehouses', id);
+  const addSupplier = async (sup: Omit<Supplier, 'id'>) => firestoreAdd('suppliers', sup);
+  const addGateEntry = async (entry: Omit<GateEntry, 'id'>) => firestoreAdd('gateEntries', entry);
+  const addPR = async (pr: Omit<PurchaseRequisition, 'id'>) => firestoreAdd('prs', pr);
+  const addPO = async (po: Omit<PurchaseOrder, 'id'>) => firestoreAdd('pos', po);
+  const addGRN = async (grn: Omit<GRN, 'id'>) => firestoreAdd('grns', grn);
+  const addStockTransfer = async (transfer: Omit<StockTransfer, 'id'>) => firestoreAdd('stockTransfers', transfer);
+  const addStockAdjustment = async (adjustment: Omit<StockAdjustment, 'id'>) => firestoreAdd('stockAdjustments', adjustment);
 
-  const deleteDepartment = async (id) => {
-    setState(s => ({
-      ...s,
-      departments: s.departments.filter(d => d.id !== id)
-    }));
-  };
+  const issueMaterial = async (issue: Omit<MaterialIssue, 'id'>, itemsData: Omit<MaterialIssueItem, 'id' | 'issueId'>[]) => {
+    try {
+      const batch = writeBatch(db);
+      
+      const newIssueId = Date.now().toString();
+      const issueRef = doc(db, 'materialIssues', newIssueId);
+      batch.set(issueRef, { ...issue, id: newIssueId });
 
-  const addWarehouse = async (wh) => {
-    const newWh = { ...wh, id: Date.now().toString() };
-    setState(s => ({ ...s, warehouses: [...s.warehouses, newWh] }));
-    await syncToSheets('append', 'warehouses', newWh);
-  };
-
-  const updateWarehouse = async (id, data) => {
-    setState(s => ({
-      ...s,
-      warehouses: s.warehouses.map(w => w.id === id ? { ...w, ...data } : w)
-    }));
-  };
-
-  const deleteWarehouse = async (id) => {
-    setState(s => ({
-      ...s,
-      warehouses: s.warehouses.filter(w => w.id !== id)
-    }));
-  };
-
-  const addSupplier = async (sup) => {
-    const newSup = { ...sup, id: Date.now().toString() };
-    setState(s => ({ ...s, suppliers: [...s.suppliers, newSup] }));
-    await syncToSheets('append', 'suppliers', newSup);
-  };
-
-  const addGateEntry = async (entry) => {
-    const newEntry = { ...entry, id: Date.now().toString() };
-    setState(s => ({ ...s, gateEntries: [...s.gateEntries, newEntry] }));
-    
-    // We map snake_case 'gate_entries_aipl' and 'gate_entries_yashoda' 
-    const typeKey = entry.companyType === 'AIPL' ? 'gate_entries_aipl' : 'gate_entries_yashoda';
-    await syncToSheets('append', typeKey, newEntry);
-  };
-
-  const addPR = async (pr) => {
-    const newPR = { ...pr, id: Date.now().toString() };
-    setState(s => ({ ...s, prs: [...s.prs, newPR] }));
-    await syncToSheets('append', 'prs', newPR);
-  };
-
-  const addPO = async (po) => {
-    const newPO = { ...po, id: Date.now().toString() };
-    setState(s => ({ ...s, pos: [...s.pos, newPO] }));
-    await syncToSheets('append', 'pos', newPO);
-  };
-
-  const addGRN = async (grn) => {
-    const newGRN = { ...grn, id: Date.now().toString() };
-    setState(s => ({ ...s, grns: [...s.grns, newGRN] }));
-    await syncToSheets('append', 'grns', newGRN);
-  };
-
-  const addStockTransfer = async (transfer) => {
-    const newTransfer = { ...transfer, id: Date.now().toString() };
-    setState(s => ({ ...s, stockTransfers: [...s.stockTransfers, newTransfer] }));
-    await syncToSheets('append', 'stock_transfers', newTransfer);
-  };
-
-  const addStockAdjustment = async (adjustment) => {
-    const newAdjustment = { ...adjustment, id: Date.now().toString() };
-    setState(s => ({ ...s, stockAdjustments: [...s.stockAdjustments, newAdjustment] }));
-    await syncToSheets('append', 'stock_adjustments', newAdjustment);
-  };
-
-  const issueMaterial = async (issue, itemsData) => {
-    const newIssue = { ...issue, id: Date.now().toString() };
-    const newItems = itemsData.map((item, index) => ({
-      ...item,
-      id: Date.now().toString() + '-' + index,
-      issueId: newIssue.id
-    }));
-
-    setState(s => {
-      let stockUpdates = [...s.stock];
-      for (const item of newItems) {
-        const existing = stockUpdates.find(st => st.itemId === item.itemId && st.warehouseId === issue.fromWarehouseId);
-        if (existing) {
-          existing.quantity -= item.quantity;
+      for (const item of itemsData) {
+        const newItemId = Date.now().toString() + Math.random();
+        const itemRef = doc(db, 'materialIssueItems', newItemId);
+        batch.set(itemRef, { ...item, id: newItemId, issueId: newIssueId });
+        
+        const stockSnapshot = await getDocs(collection(db, 'stock'));
+        const existingStock = stockSnapshot.docs.map(d => ({id: d.id, ...(d.data() as Omit<Stock, 'id'>)}))
+          .find((st: any) => st.itemId === item.itemId);
+        
+        if (existingStock) {
+           const stockRef = doc(db, 'stock', existingStock.id);
+           batch.update(stockRef, { quantity: (existingStock.quantity as number) - item.quantity });
         } else {
-          stockUpdates.push({
-            id: Date.now().toString() + Math.random(),
-            itemId: item.itemId,
-            warehouseId: issue.fromWarehouseId,
-            quantity: -item.quantity,
-            lastUpdated: new Date().toISOString()
-          });
+           const newStockId = Date.now().toString() + Math.random();
+           const stockRef = doc(db, 'stock', newStockId);
+           batch.set(stockRef, { itemId: item.itemId, warehouseId: 'default', quantity: -item.quantity });
         }
       }
-      return { 
-        ...s, 
-        materialIssues: [...s.materialIssues, newIssue],
-        materialIssueItems: [...s.materialIssueItems, ...newItems],
-        stock: stockUpdates
-      };
-    });
+      
+      await batch.commit();
+    } catch(e) {
+      handleFirestoreError(e, OperationType.WRITE, 'materialIssues');
+    }
+  };
 
-    await syncToSheets('append', 'material_issues', newIssue);
-    for (const item of newItems) {
-      await syncToSheets('append', 'material_issue_items', item);
+  const receiveStock = async (itemId: string, warehouseId: string, quantity: number, batchNo?: string) => {
+    try {
+      const stockSnapshot = await getDocs(collection(db, 'stock'));
+      const existingStock = stockSnapshot.docs.map(d => ({id: d.id, ...(d.data() as Omit<Stock, 'id'>)}))
+        .find((st: any) => st.itemId === itemId && st.warehouseId === warehouseId && st.batchNo === batchNo);
+        
+      if (existingStock) {
+        await updateDoc(doc(db, 'stock', existingStock.id), { quantity: (existingStock.quantity as number) + quantity });
+      } else {
+        const newStockId = Date.now().toString() + Math.random();
+        await setDoc(doc(db, 'stock', newStockId), { itemId, warehouseId, quantity, batchNo, lastUpdated: new Date().toISOString() });
+      }
+    } catch(e) {
+      handleFirestoreError(e, OperationType.WRITE, 'stock');
     }
   };
 
 
-  const receiveStock = async (itemId: string, warehouseId: string, quantity: number, batchNo?: string) => {
-    setState(s => {
-      let stockUpdates = [...s.stock];
-      const existing = stockUpdates.find(st => st.itemId === itemId && st.warehouseId === warehouseId && st.batchNo === batchNo);
-      if (existing) {
-        existing.quantity += quantity;
-      } else {
-        stockUpdates.push({
-          id: Date.now().toString(),
-          itemId,
-          warehouseId,
-          quantity,
-          batchNo,
-          lastUpdated: new Date().toISOString()
-        });
-      }
-      return { ...s, stock: stockUpdates };
-    });
-  };
-
-  const value = {
+  const value = { login, loginWithEmail, addUser, updateUser, logout: logoutUser,
     ...state,
-    setScriptUrl,
+    
     initApp,
     addItem,
     addDepartment,

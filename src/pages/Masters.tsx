@@ -5,7 +5,7 @@ import { Plus, MapPin, Building, Store, X, FolderTree, Users, Factory, Pencil, T
 import { CSVUploader } from '../components/CSVUploader';
 
 export default function Masters() {
-    const { items, addItem, warehouses, departments, addWarehouse, updateWarehouse, deleteWarehouse, addDepartment, updateDepartment, deleteDepartment, stock } = useApp();
+    const { users, addUser, updateUser, items, addItem, warehouses, departments, addWarehouse, updateWarehouse, deleteWarehouse, addDepartment, updateDepartment, deleteDepartment, stock } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'warehouse' | 'department' | 'company' | 'user' | 'item'>('warehouse');
     const [activeTab, setActiveTab] = useState<'departments' | 'warehouses' | 'companies' | 'users' | 'items'>('departments');
@@ -198,21 +198,29 @@ export default function Masters() {
             <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm text-gray-500">
               <tr>
                 <th className="p-4">Name</th>
-                <th className="p-4">Type</th>
-                <th className="p-4">Location/Address</th>
+                <th className="p-4">Email</th>
+                <th className="p-4">Role</th>
+                <th className="p-4">Status</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-gray-100 dark:border-zinc-800">
-                <td className="p-4 font-medium">Yashoda Linen Yarn Limited</td>
-                <td className="p-4"><span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">Company</span></td>
-                <td className="p-4 text-gray-500">Head Office</td>
-              </tr>
-              <tr>
-                <td className="p-4 pl-8 border-l-2 border-gray-200 dark:border-zinc-700">Main Plant</td>
-                <td className="p-4"><span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Plant</span></td>
-                <td className="p-4 text-gray-500">Unit 1</td>
-              </tr>
+              {(users && users.length > 0 ? users : [{ id: '1', name: 'Admin User', email: 'admin@yashoda.com', role: 'Administrator', status: 'Active' }]).map(u => (
+                <tr key={u.id}>
+                  <td className="p-4 font-medium flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600">
+                      {u.name ? u.name[0].toUpperCase() : 'U'}
+                    </div>
+                    {u.name}
+                  </td>
+                  <td className="p-4 text-gray-500">{u.email}</td>
+                  <td className="p-4">{u.role}</td>
+                  <td className="p-4">
+                    <span className={`${u.status === 'Active' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : 'text-red-600 bg-red-50 dark:bg-red-900/20'} px-2 py-1 rounded-full text-xs font-medium`}>
+                      {u.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -294,8 +302,12 @@ export default function Masters() {
               if (editItem) updateDepartment(editItem.id, data);
               else addDepartment(data);
             }
-            else if (modalType === 'item') {
-               addItem(data);
+            else if (modalType === 'item') { 
+              addItem(data);
+            }
+            else if (modalType === 'user') {
+              if (editItem) updateUser(editItem.id, data);
+              else addUser(data);
             }
             setIsModalOpen(false);
             setEditItem(null);
