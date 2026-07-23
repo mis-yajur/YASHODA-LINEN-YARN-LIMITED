@@ -5,6 +5,36 @@
 // 3. Ensure "Execute as: Me" and "Who has access: Anyone" are selected.
 // 4. Click "Deploy" and copy the NEW Web App URL and paste it into your app's settings.
 
+function setupInitialSheets() {
+  var doc = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetsToCreate = [
+    { name: 'Items', headers: ['id', 'name', 'sku', 'description', 'category', 'type', 'uom', 'reorderLevel', 'unitPrice'] },
+    { name: 'Departments', headers: ['id', 'name', 'head', 'location'] },
+    { name: 'Warehouses', headers: ['id', 'name', 'location', 'type'] },
+    { name: 'Suppliers', headers: ['id', 'name', 'contactPerson', 'email', 'phone', 'address', 'gstin'] },
+    { name: 'GateEntries', headers: ['id', 'entryNo', 'date', 'type', 'partyName', 'vehicleNo', 'driverName', 'remarks', 'status'] },
+    { name: 'MaterialIssues', headers: ['id', 'issueNo', 'date', 'departmentId', 'requestedBy', 'issuedBy', 'status', 'remarks'] },
+    { name: 'PRs', headers: ['id', 'prNo', 'date', 'departmentId', 'requestedBy', 'expectedDate', 'status', 'remarks'] },
+    { name: 'POs', headers: ['id', 'poNo', 'date', 'supplierId', 'expectedDelivery', 'status', 'totalAmount', 'remarks'] },
+    { name: 'GRNs', headers: ['id', 'grnNo', 'poId', 'gateEntryId', 'date', 'receivedBy', 'inspectedBy', 'status', 'remarks'] },
+    { name: 'StockTransfers', headers: ['id', 'transferNo', 'date', 'fromWarehouseId', 'toWarehouseId', 'requestedBy', 'status', 'remarks'] },
+    { name: 'StockAdjustments', headers: ['id', 'adjustmentNo', 'date', 'warehouseId', 'adjustedBy', 'reason', 'status', 'remarks'] }
+  ];
+
+  sheetsToCreate.forEach(function(s) {
+    var sheet = doc.getSheetByName(s.name);
+    if (!sheet) {
+      sheet = doc.insertSheet(s.name);
+    }
+    // Check if headers exist
+    var lastRow = sheet.getLastRow();
+    if (lastRow === 0) {
+      sheet.appendRow(s.headers);
+      sheet.getRange(1, 1, 1, s.headers.length).setFontWeight("bold");
+    }
+  });
+}
+
 function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) {
