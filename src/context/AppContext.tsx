@@ -75,7 +75,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      const savedUrl = state.scriptUrl || localStorage.getItem('yashoda_inventory_script_url');
+      const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxhbZpukrSNyJEvK_fAg1VgjBd6pIS9e3T_AvygI1CZaII27ggbhtry4rI_abUtgN0A/exec";
+      const savedUrl = state.scriptUrl || localStorage.getItem('yashoda_inventory_script_url') || APP_SCRIPT_URL;
       if (savedUrl) {
         // Use Google Apps Script Web App
         const res = await fetch(savedUrl, {
