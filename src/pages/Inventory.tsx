@@ -35,7 +35,6 @@ export default function Inventory() {
 
   const [activeTab, setActiveTab] = useState<'stock' | 'gateInward' | 'items' | 'transfers' | 'adjustments'>('stock');
   const [itemMasterSubTab, setItemMasterSubTab] = useState<'catalog' | 'gateLogs'>('catalog');
-  const [gateInwardStoreTab, setGateInwardStoreTab] = useState<'Yashoda' | 'AIPL'>('Yashoda');
   const [stockUnitMode, setStockUnitMode] = useState<'TON' | 'KGS' | 'NATIVE'>('TON');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,70 +46,6 @@ export default function Inventory() {
   const yashodaGateEntries = useMemo(() => {
     return (gateEntriesYashoda || []).map(e => ({ ...e, companyType: 'Yashoda' as const }));
   }, [gateEntriesYashoda]);
-
-  // Process Contractor AIPL Gate Entries separately
-  const aiplGateEntries = useMemo(() => {
-    return (gateEntriesAIPL || []).map(e => ({ ...e, companyType: 'AIPL' as const }));
-  }, [gateEntriesAIPL]);
-
-  // Aggregate Contractor AIPL Gate Entries separately
-  const aiplGateInwardStockSummary = useMemo(() => {
-    const map: Record<string, {
-      materialDescription: string;
-      unit: string;
-      totalQty: number;
-      totalBasePrice: number;
-      totalGST: number;
-      totalValue: number;
-      entryCount: number;
-      partyNames: Set<string>;
-      lastDate: string;
-      companies: Set<string>;
-    }> = {};
-
-    aiplGateEntries.forEach(entry => {
-      const matName = (entry.materialDescription || 'Unspecified Material').trim();
-      if (!matName) return;
-      const key = matName.toLowerCase();
-
-      if (!map[key]) {
-        map[key] = {
-          materialDescription: matName,
-          unit: entry.unit || 'Units',
-          totalQty: 0,
-          totalBasePrice: 0,
-          totalGST: 0,
-          totalValue: 0,
-          entryCount: 0,
-          partyNames: new Set(),
-          lastDate: entry.date || '',
-          companies: new Set(['Contractor AIPL'])
-        };
-      }
-
-      const base = parseNumeric(entry.basePrice);
-      const gst = parseNumeric(entry.cgst) + parseNumeric(entry.sgst) + parseNumeric(entry.igst);
-      const total = parseNumeric(entry.totalPrice);
-      const qty = parseNumeric(entry.quantityWeight);
-
-      map[key].totalQty += qty;
-      map[key].totalBasePrice += base;
-      map[key].totalGST += gst;
-      map[key].totalValue += total;
-      map[key].entryCount += 1;
-      if (entry.partyName) map[key].partyNames.add(entry.partyName);
-      if (entry.date) map[key].lastDate = entry.date;
-    });
-
-    Object.values(map).forEach(item => {
-      item.totalQty = Math.round((item.totalQty + Number.EPSILON) * 100) / 100;
-      item.totalBasePrice = Math.round((item.totalBasePrice + Number.EPSILON) * 100) / 100;
-      item.totalGST = Math.round((item.totalGST + Number.EPSILON) * 100) / 100;
-      item.totalValue = Math.round((item.totalValue + Number.EPSILON) * 100) / 100;
-    });
-
-    return Object.values(map);
-  }, [aiplGateEntries]);
 
   // Aggregate Yashoda Gate Entries by Material Description for Inward Stock
   const gateInwardStockSummary = useMemo(() => {
@@ -471,11 +406,6 @@ export default function Inventory() {
     Array.from(summary.partyNames).some(p => String(p).toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const filteredAiplGateSummary = aiplGateInwardStockSummary.filter(summary =>
-    summary.materialDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    Array.from(summary.partyNames).some(p => String(p).toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
   const filteredLiveStock = useMemo(() => {
     return liveCurrentStock.filter(st =>
       st.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -489,24 +419,27 @@ export default function Inventory() {
     let displayInward = st.inwardQty;
     let displayIssued = st.issuedQty;
     let displayCurrent = st.currentStock;
-    let displayRate = st.avgRate;
-
-    const isRatePerTon = st.avgRate >= 5000 || st.uom.toUpperCase().includes('TON') || st.uom.toUpperCase().includes('MT');
 
     if (stockUnitMode === 'TON') {
       displayUom = 'TON';
       displayInward = convertUnitQuantity(st.inwardQty, st.uom, 'TON');
       displayIssued = convertUnitQuantity(st.issuedQty, st.uom, 'TON');
       displayCurrent = convertUnitQuantity(st.currentStock, st.uom, 'TON');
-      displayRate = isRatePerTon ? st.avgRate : st.avgRate * 1000;
     } else if (stockUnitMode === 'KGS') {
       displayUom = 'Kgs';
       displayInward = convertUnitQuantity(st.inwardQty, st.uom, 'KGS');
       displayIssued = convertUnitQuantity(st.issuedQty, st.uom, 'KGS');
       displayCurrent = convertUnitQuantity(st.currentStock, st.uom, 'KGS');
-      displayRate = isRatePerTon ? st.avgRate / 1000 : st.avgRate;
     } else {
       displayUom = st.uom;
+    }
+
+    let displayRate = 0;
+    if (displayCurrent > 0) {
+      displayRate = st.totalValue / displayCurrent;
+    } else if (displayInward > 0) {
+      displayRate = st.totalValue / displayInward;
+    } else {
       displayRate = st.avgRate;
     }
 
@@ -825,190 +758,90 @@ export default function Inventory() {
             <div>
               <h2 className="text-lg font-bold flex items-center gap-2">
                 <Truck className="w-5 h-5 text-emerald-500" />
-                Inward Received Gate Quantities & Values
+                Yashoda Inward Received Quantities & Values
               </h2>
               <p className="text-xs text-gray-500">
-                Separated store registers for Yashoda Linen Yarn Ltd and Contractor AIPL
+                Captured exclusively from Yashoda Linen Yarn Ltd Gate Register entries
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="bg-gray-100 dark:bg-zinc-800 p-1 rounded-xl flex gap-1 text-xs">
-                <button
-                  onClick={() => setGateInwardStoreTab('Yashoda')}
-                  className={`px-3.5 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
-                    gateInwardStoreTab === 'Yashoda'
-                      ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <span>Yashoda Store Table</span>
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300">
-                    {gateInwardStockSummary.length}
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => setGateInwardStoreTab('AIPL')}
-                  className={`px-3.5 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
-                    gateInwardStoreTab === 'AIPL'
-                      ? 'bg-white dark:bg-zinc-900 text-amber-600 dark:text-amber-400 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <span>Contractor AIPL Store Table</span>
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
-                    {aiplGateInwardStockSummary.length}
-                  </span>
-                </button>
-              </div>
-
-              <div className="relative max-w-xs w-full sm:w-auto">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input 
-                  type="text" 
-                  placeholder="Search material description..." 
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 text-xs outline-none"
-                />
-              </div>
+            <div className="relative max-w-xs w-full sm:w-auto">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input 
+                type="text" 
+                placeholder="Search material description..." 
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 text-xs outline-none"
+              />
             </div>
           </div>
 
-          {gateInwardStoreTab === 'Yashoda' ? (
-            <div className="overflow-x-auto border rounded-lg border-gray-200 dark:border-zinc-800">
-              <div className="bg-indigo-50/60 dark:bg-indigo-950/20 px-4 py-2 border-b border-indigo-100 dark:border-indigo-900/30 flex justify-between items-center text-xs">
-                <span className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
-                  <Package className="w-4 h-4 text-indigo-600" />
-                  Yashoda Store Data Table (Connected to Yashoda Item Master & Current Stock)
-                </span>
-                <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
-                  {filteredGateSummary.length} Material Categories
-                </span>
-              </div>
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 font-medium text-gray-500 dark:text-gray-400">
-                    <th className="px-4 py-3">Material Description</th>
-                    <th className="px-4 py-3">Company Source</th>
-                    <th className="px-4 py-3 text-right">Total Inward Qty</th>
-                    <th className="px-4 py-3 text-right">Total Base Price</th>
-                    <th className="px-4 py-3 text-right">Total GST</th>
-                    <th className="px-4 py-3 text-right">Grand Total Value</th>
-                    <th className="px-4 py-3 text-center">Entries</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                  {filteredGateSummary.map((sum, i) => (
-                    <tr key={i} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50">
-                      <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">
-                        {sum.materialDescription}
-                        <div className="text-xs text-gray-400 font-normal">
-                          Parties: {Array.from(sum.partyNames).join(', ') || 'Various'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
-                          Yashoda
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                        {sum.totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {sum.unit}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono">
-                        {formatCurrency(sum.totalBasePrice)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-amber-600 dark:text-amber-400">
-                        {formatCurrency(sum.totalGST)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-extrabold font-mono text-gray-900 dark:text-white">
-                        {formatCurrency(sum.totalValue)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="bg-gray-100 dark:bg-zinc-800 px-2 py-1 rounded text-xs font-semibold">
-                          {sum.entryCount}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredGateSummary.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                        No Yashoda Gate Register inward stock entries found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+          <div className="overflow-x-auto border rounded-lg border-gray-200 dark:border-zinc-800">
+            <div className="bg-indigo-50/60 dark:bg-indigo-950/20 px-4 py-2 border-b border-indigo-100 dark:border-indigo-900/30 flex justify-between items-center text-xs">
+              <span className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-indigo-600" />
+                Yashoda Store Data Table (Connected to Yashoda Item Master & Current Stock)
+              </span>
+              <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
+                {filteredGateSummary.length} Material Categories
+              </span>
             </div>
-          ) : (
-            <div className="overflow-x-auto border rounded-lg border-gray-200 dark:border-zinc-800">
-              <div className="bg-amber-50/60 dark:bg-amber-950/20 px-4 py-2 border-b border-amber-100 dark:border-amber-900/30 flex justify-between items-center text-xs">
-                <span className="font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
-                  <Package className="w-4 h-4 text-amber-600" />
-                  Contractor AIPL Separate Store Data Table
-                </span>
-                <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-                  {filteredAiplGateSummary.length} Material Categories
-                </span>
-              </div>
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 font-medium text-gray-500 dark:text-gray-400">
-                    <th className="px-4 py-3">Material Description</th>
-                    <th className="px-4 py-3">Company Source</th>
-                    <th className="px-4 py-3 text-right">Total Inward Qty</th>
-                    <th className="px-4 py-3 text-right">Total Base Price</th>
-                    <th className="px-4 py-3 text-right">Total GST</th>
-                    <th className="px-4 py-3 text-right">Grand Total Value</th>
-                    <th className="px-4 py-3 text-center">Entries</th>
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 font-medium text-gray-500 dark:text-gray-400">
+                  <th className="px-4 py-3">Material Description</th>
+                  <th className="px-4 py-3">Company Source</th>
+                  <th className="px-4 py-3 text-right">Total Inward Qty</th>
+                  <th className="px-4 py-3 text-right">Total Base Price</th>
+                  <th className="px-4 py-3 text-right">Total GST</th>
+                  <th className="px-4 py-3 text-right">Grand Total Value</th>
+                  <th className="px-4 py-3 text-center">Entries</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                {filteredGateSummary.map((sum, i) => (
+                  <tr key={i} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50">
+                    <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">
+                      {sum.materialDescription}
+                      <div className="text-xs text-gray-400 font-normal">
+                        Parties: {Array.from(sum.partyNames).join(', ') || 'Various'}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
+                        Yashoda
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                      {sum.totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {sum.unit}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono">
+                      {formatCurrency(sum.totalBasePrice)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-amber-600 dark:text-amber-400">
+                      {formatCurrency(sum.totalGST)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-extrabold font-mono text-gray-900 dark:text-white">
+                      {formatCurrency(sum.totalValue)}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="bg-gray-100 dark:bg-zinc-800 px-2 py-1 rounded text-xs font-semibold">
+                        {sum.entryCount}
+                      </span>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                  {filteredAiplGateSummary.map((sum, i) => (
-                    <tr key={i} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50">
-                      <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">
-                        {sum.materialDescription}
-                        <div className="text-xs text-gray-400 font-normal">
-                          Parties: {Array.from(sum.partyNames).join(', ') || 'Various'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                          Contractor AIPL
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                        {sum.totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {sum.unit}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono">
-                        {formatCurrency(sum.totalBasePrice)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-amber-600 dark:text-amber-400">
-                        {formatCurrency(sum.totalGST)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-extrabold font-mono text-gray-900 dark:text-white">
-                        {formatCurrency(sum.totalValue)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="bg-gray-100 dark:bg-zinc-800 px-2 py-1 rounded text-xs font-semibold">
-                          {sum.entryCount}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredAiplGateSummary.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                        No Contractor AIPL Gate Register inward store entries found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ))}
+                {filteredGateSummary.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                      No Yashoda Gate Register inward stock entries found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
