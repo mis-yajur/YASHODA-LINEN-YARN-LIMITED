@@ -165,6 +165,8 @@ export default function Reports() {
             </div>
           </div>
         </div>
+      ) : activeCategory === 'inventory' ? (
+        <InventoryReportView />
       ) : (
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-6">
           <div className="flex justify-between items-center mb-6">
@@ -175,15 +177,6 @@ export default function Reports() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {activeCategory === 'inventory' && (
-              <>
-                <ReportCard title="Stock Ledger" description="Detailed item-wise stock movement history." />
-                <ReportCard title="Daily Stock Report" description="End of day stock balances across all warehouses." />
-                <ReportCard title="Low Stock Alert" description="Items below minimum reorder levels." />
-                <ReportCard title="Stock Valuation" description="Current inventory value based on average cost." />
-                <ReportCard title="Slow Moving Items" description="Items with no movement in the last 90 days." />
-              </>
-            )}
             {activeCategory === 'procurement' && (
               <>
                 <ReportCard title="Purchase Register" description="Summary of all POs generated in a period." />
@@ -200,6 +193,68 @@ export default function Reports() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function InventoryReportView() {
+  const { stock, items, warehouses } = useApp();
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
+      <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
+        <h2 className="font-bold text-lg">Daily Stock Report</h2>
+        <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg">
+          <Filter className="w-4 h-4" /> Filter Options
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm text-gray-500">
+            <tr>
+              <th className="p-4">Item Name</th>
+              <th className="p-4">SKU</th>
+              <th className="p-4">Category</th>
+              <th className="p-4">Warehouse</th>
+              <th className="p-4">Quantity</th>
+              <th className="p-4">Reorder Level</th>
+              <th className="p-4">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stock && stock.map(s => {
+              const item = items.find(i => i.id === s.itemId);
+              const wh = warehouses.find(w => w.id === s.warehouseId);
+              if (!item) return null;
+              
+              const isLowStock = s.quantity <= item.reorderLevel;
+
+              return (
+                <tr key={s.id} className="border-b border-gray-100 dark:border-zinc-800 last:border-0">
+                  <td className="p-4 font-medium">{item.name}</td>
+                  <td className="p-4">{item.sku}</td>
+                  <td className="p-4">{item.type}</td>
+                  <td className="p-4">{wh?.name || 'Unknown'}</td>
+                  <td className="p-4">{s.quantity} {item.uom}</td>
+                  <td className="p-4">{item.reorderLevel} {item.uom}</td>
+                  <td className="p-4">
+                    {isLowStock ? (
+                      <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">Low Stock</span>
+                    ) : (
+                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Healthy</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {(!stock || stock.length === 0) && (
+              <tr>
+                <td colSpan={7} className="p-8 text-center text-gray-500">No stock data available. Add inventory to view reports.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

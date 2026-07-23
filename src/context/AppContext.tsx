@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AppState, Item, Department, Warehouse, Stock, MaterialIssue, Supplier, MaterialIssueItem, GateEntry } from '../types';
+import { AppState, Item, Department, Warehouse, Stock, MaterialIssue, Supplier, MaterialIssueItem, GateEntry, PurchaseRequisition, PurchaseOrder, GRN } from '../types';
 
 interface AppContextType extends AppState {
   setScriptUrl: (url: string) => void;
@@ -9,6 +9,9 @@ interface AppContextType extends AppState {
   addWarehouse: (wh: Omit<Warehouse, 'id'>) => Promise<void>;
   addSupplier: (sup: Omit<Supplier, 'id'>) => Promise<void>;
   addGateEntry: (entry: Omit<GateEntry, 'id'>) => Promise<void>;
+  addPR: (pr: Omit<PurchaseRequisition, 'id'>) => Promise<void>;
+  addPO: (po: Omit<PurchaseOrder, 'id'>) => Promise<void>;
+  addGRN: (grn: Omit<GRN, 'id'>) => Promise<void>;
   issueMaterial: (issue: Omit<MaterialIssue, 'id'>, items: Omit<MaterialIssueItem, 'id' | 'issueId'>[]) => Promise<void>;
   receiveStock: (itemId: string, warehouseId: string, quantity: number, batchNo?: string) => Promise<void>;
 }
@@ -19,7 +22,6 @@ const LOCAL_STORAGE_KEY = 'yashoda_inventory_data';
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [state, setState] = useState<AppState>({
-    scriptUrl: localStorage.getItem('yashoda_script_url') || 'https://script.google.com/macros/s/AKfycbxhbZpukrSNyJEvK_fAg1VgjBd6pIS9e3T_AvygI1CZaII27ggbhtry4rI_abUtgN0A/exec',
     departments: [],
     suppliers: [],
     items: [],
@@ -28,6 +30,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     materialIssues: [],
     materialIssueItems: [],
     gateEntries: [],
+    prs: [],
+    pos: [],
+    grns: [],
     isSyncing: false
   });
 
@@ -43,7 +48,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       stock: state.stock,
       materialIssues: state.materialIssues,
       materialIssueItems: state.materialIssueItems,
-      gateEntries: state.gateEntries
+      gateEntries: state.gateEntries,
+      prs: state.prs,
+      pos: state.pos,
+      grns: state.grns
     }));
   }, [state, initialized]);
 
@@ -81,38 +89,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const setScriptUrl = (url: string) => {
-    localStorage.setItem('yashoda_script_url', url);
-    setState(s => ({ ...s, scriptUrl: url }));
+    // Deprecated
   };
 
   const initApp = async () => {
     setState(s => ({ ...s, isSyncing: true }));
     try {
-      if (state.scriptUrl) {
-        try {
-          const res = await fetch(`${state.scriptUrl}?action=getAll`);
-          if (res.ok) {
-            const data = await res.json();
-            setState(s => ({
-              ...s,
-              departments: data.departments || [],
-              suppliers: data.suppliers || [],
-              items: data.items || [],
-              warehouses: data.warehouses || [],
-              stock: data.stock || [],
-              materialIssues: data.material_issues || [],
-              materialIssueItems: data.material_issue_items || [],
-              gateEntries: data.gate_entries || [],
-              isSyncing: false
-            }));
-            setInitialized(true);
-            return;
-          }
-        } catch(e) {
-          console.error("Failed to fetch from sheets, falling back to local storage", e);
-        }
-      }
-
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -205,8 +187,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     // Complex stock updates need custom endpoints in Code.gs
   };
 
+  const addPR = async (prData: Omit<PurchaseRequisition, 'id'>) => {
+    const pr: PurchaseRequisition = { ...prData, id: crypto.randomUUID() };
+    setState(s => ({ ...s, prs: [...(s.prs || []), pr] }));
+    await syncToSheets('append', 'prs', pr);
+  };
+
+  const addPO = async (poData: Omit<PurchaseOrder, 'id'>) => {
+    const po: PurchaseOrder = { ...poData, id: crypto.randomUUID() };
+    setState(s => ({ ...s, pos: [...(s.pos || []), po] }));
+    await syncToSheets('append', 'pos', po);
+  };
+
+  const addGRN = async (grnData: Omit<GRN, 'id'>) => {
+    const grn: GRN = { ...grnData, id: crypto.randomUUID() };
+    setState(s => ({ ...s, grns: [...(s.grns || []), grn] }));
+    await syncToSheets('append', 'grns', grn);
+  };
+
   return (
-    <AppContext.Provider value={{ ...state, setScriptUrl, initApp, addItem, addDepartment, addWarehouse, addSupplier, addGateEntry, issueMaterial, receiveStock }}>
+    <AppContext.Provider value={{ ...state, setScriptUrl, initApp, addItem, addDepartment, addWarehouse, addSupplier, addGateEntry, addPR, addPO, addGRN, issueMaterial, receiveStock }}>
       {children}
     </AppContext.Provider>
   );

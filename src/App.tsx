@@ -24,12 +24,15 @@ import Notifications from './pages/Notifications';
 import GateRegister from './pages/GateRegister';
 
 function Layout({ children }: { children: React.ReactNode }) {
-  const { initApp, isSyncing, scriptUrl } = useApp();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { initApp, isSyncing } = useApp();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
     initApp();
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -63,12 +66,12 @@ function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Sidebar */}
       <div className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-zinc-900 border-r dark:border-zinc-800 transform transition-transform duration-200 ease-in-out md:relative md:translate-x-0 flex flex-col",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        "fixed inset-y-0 left-0 z-50 bg-white dark:bg-zinc-900 border-r dark:border-zinc-800 transition-all duration-200 ease-in-out flex flex-col",
+        sidebarOpen ? "w-64 translate-x-0" : "-translate-x-full md:translate-x-0 md:w-20"
       )}>
-        <div className="p-6 flex items-center gap-3 text-indigo-600 dark:text-indigo-400 font-bold text-lg border-b dark:border-zinc-800 hidden md:flex">
+        <div className="p-6 flex items-center gap-3 text-indigo-600 dark:text-indigo-400 font-bold text-lg border-b dark:border-zinc-800 hidden md:flex cursor-pointer" onClick={() => setSidebarOpen(!sidebarOpen)}>
           <Database className="w-8 h-8 shrink-0" />
-          <span className="leading-tight">YASHODA LINEN<br/>YARN LIMITED</span>
+          {sidebarOpen && <span className="leading-tight">YASHODA LINEN<br/>YARN LIMITED</span>}
         </div>
         
         <nav className="flex-1 px-4 py-6 space-y-1">
@@ -82,28 +85,24 @@ function Layout({ children }: { children: React.ReactNode }) {
                 }
               }}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+              title={!sidebarOpen ? item.name : undefined}
             >
-              <item.icon className="w-5 h-5" />
-              {item.name}
+              <item.icon className="w-5 h-5 shrink-0" />
+              {sidebarOpen && <span>{item.name}</span>}
             </Link>
           ))}
         </nav>
         
         <div className="p-4 border-t dark:border-zinc-800 flex flex-col gap-2">
-          {!scriptUrl && (
-            <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 p-3 rounded-lg text-xs mb-2">
-              <span className="font-bold block">Setup Required</span>
-              Connect Google Sheets to enable sync.
-            </div>
-          )}
           {isSyncing && <div className="text-xs text-center text-gray-500 animate-pulse">Syncing...</div>}
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Theme</span>
+            {sidebarOpen && <span className="text-sm font-medium px-2">Theme</span>}
             <button 
               onClick={() => setDarkMode(!darkMode)}
-              className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg"
+              className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg w-full flex justify-center"
+              title="Toggle Theme"
             >
-              {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              {darkMode ? <Sun className="w-5 h-5 shrink-0" /> : <Moon className="w-5 h-5 shrink-0" />}
             </button>
           </div>
         </div>
@@ -111,6 +110,11 @@ function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto w-full max-w-7xl mx-auto">
+        <div className="hidden md:block mb-4">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 transition-colors">
+             <Menu className="w-5 h-5" />
+          </button>
+        </div>
         {children}
       </main>
       

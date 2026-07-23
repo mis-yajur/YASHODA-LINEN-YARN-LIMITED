@@ -72,8 +72,33 @@ export interface GateEntry {
   securitySign: string;
 }
 
+export interface PurchaseRequisition {
+  id: string;
+  prNumber: string;
+  departmentId: string;
+  date: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+}
+
+export interface PurchaseOrder {
+  id: string;
+  poNumber: string;
+  supplierId: string;
+  date: string;
+  amount: number;
+  status: 'Draft' | 'Sent' | 'Completed';
+}
+
+export interface GRN {
+  id: string;
+  grnNumber: string;
+  poId: string;
+  date: string;
+  receivedBy: string;
+  status: 'Received' | 'Inspected' | 'Rejected';
+}
+
 export interface AppState {
-  scriptUrl: string | null;
   departments: Department[];
   suppliers: Supplier[];
   items: Item[];
@@ -82,5 +107,8 @@ export interface AppState {
   materialIssues: MaterialIssue[];
   materialIssueItems: MaterialIssueItem[];
   gateEntries: GateEntry[];
+  prs: PurchaseRequisition[];
+  pos: PurchaseOrder[];
+  grns: GRN[];
   isSyncing: boolean;
 }
