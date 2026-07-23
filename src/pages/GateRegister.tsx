@@ -23,7 +23,7 @@ export default function GateRegister() {
   const loadSheetData = async (type: 'AIPL' | 'Yashoda' = companyType) => {
     setIsLoadingSheet(true);
     try {
-      const spreadsheetId = await getOrCreateSpreadsheet();
+      // const spreadsheetId = await getOrCreateSpreadsheet();
       setSheetUrl(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`);
       const rows = await fetchRows(spreadsheetId, 'GateEntries_' + type);
       if (rows && rows.length > 1) { // Skip header row
@@ -43,6 +43,7 @@ export default function GateRegister() {
         }));
         setSheetEntries(mappedEntries);
       }
+
     } catch (e) {
       console.error("Failed to load sheet data", e);
     } finally {
@@ -50,35 +51,6 @@ export default function GateRegister() {
     }
   };
 
-  useEffect(() => {
-    setSheetUrl(getSpreadsheetLink());
-    const unsubscribe = initAuth(
-      (user, token) => {
-        setUser(user);
-        setNeedsAuth(false);
-        loadSheetData(companyType);
-      },
-      () => setNeedsAuth(true)
-    );
-    return () => unsubscribe();
-  }, []);
-
-  const handleLogin = async () => {
-    setIsLoggingIn(true);
-    try {
-      const result = await googleSignIn();
-      if (result) {
-        setUser(result.user);
-        setNeedsAuth(false);
-        await loadSheetData(companyType);
-      }
-    } catch (err) {
-      console.error('Login failed:', err);
-      alert('Failed to sign in. Please try again.');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
   
   // Form State
   const [formData, setFormData] = useState({
@@ -131,23 +103,17 @@ export default function GateRegister() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (needsAuth) {
-      alert("Please sign in to Google to sync gate entries.");
-      return;
-    }
+    // if (needsAuth) {
+    //   alert("Please sign in to Google to sync gate entries.");
+    //   return;
+    // }
 
     setIsSyncing(true);
     try {
-      const spreadsheetId = await getOrCreateSpreadsheet();
-      if (!sheetUrl) {
-        setSheetUrl(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`);
-      }
-
       const slNo = (allEntries.length + 1).toString();
       
       // Save locally and sync (AppContext handles sync to sheets now)
       await addGateEntry({ ...formData, slNo, companyType });
-      await loadSheetData(companyType);
 
       setIsModalOpen(false);
       setFormData({
@@ -180,26 +146,6 @@ export default function GateRegister() {
           <MapPin className="w-6 h-6 text-indigo-600" /> Gate Entry Register
         </h1>
         <div className="flex gap-2 items-center">
-          {needsAuth ? (
-            <button 
-              onClick={handleLogin} 
-              disabled={isLoggingIn}
-              className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium"
-            >
-              <LogIn className="w-4 h-4" /> {isLoggingIn ? 'Connecting...' : 'Connect Sheets'}
-            </button>
-          ) : (
-            sheetUrl && (
-              <a 
-                href={sheetUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 border border-green-200 dark:border-green-800 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors text-sm font-medium"
-              >
-                <ExternalLink className="w-4 h-4" /> View Google Sheet
-              </a>
-            )
-          )}
           <button onClick={handleExport} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium">
             <Download className="w-4 h-4" /> Export CSV
           </button>
@@ -233,7 +179,7 @@ export default function GateRegister() {
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
-                setCurrentPage(1);
+                setCurrentPage(1); 
               }}
               className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
