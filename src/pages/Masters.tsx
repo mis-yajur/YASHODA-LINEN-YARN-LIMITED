@@ -81,7 +81,7 @@ export default function Masters() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-1 opacity-100 transition-opacity">
                     <button 
                       onClick={() => { setEditItem(wh); setModalType('warehouse'); setIsModalOpen(true); }}
                       className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
@@ -128,7 +128,7 @@ export default function Masters() {
                   <p className="text-sm text-gray-500 dark:text-gray-400">Head: {dept.head}</p>
                 </div>
               </div>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex gap-1 opacity-100 transition-opacity">
                 <button 
                   onClick={() => { setEditItem(dept); setModalType('department'); setIsModalOpen(true); }}
                   className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
