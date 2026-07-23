@@ -27,7 +27,9 @@ export default function Inventory() {
     addGateEntry,
     updateGateEntry,
     deleteGateEntry,
-    receiveStock
+    receiveStock,
+    materialIssues = [],
+    materialIssueItems = []
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'stock' | 'gateInward' | 'items' | 'transfers' | 'adjustments'>('stock');
@@ -93,6 +95,145 @@ export default function Inventory() {
 
     return Object.values(map);
   }, [yashodaGateEntries]);
+
+  // Dynamic Live Stock & Valuation: Gate Inwards (Addition) - Material Issues (Reduction)
+  const liveCurrentStock = useMemo(() => {
+    const map: Record<string, {
+      key: string;
+      itemName: string;
+      sku: string;
+      uom: string;
+      category: string;
+      warehouse: string;
+      inwardQty: number;
+      issuedQty: number;
+      currentStock: number;
+      avgRate: number;
+      totalValue: number;
+      reorderLevel: number;
+      isLow: boolean;
+      sources: string[];
+    }> = {};
+
+    // 1. Process Gate Register Inward entries
+    const allGate = [
+      ...(gateEntriesYashoda || []).map(e => ({ ...e, company: 'Yashoda' })),
+      ...(gateEntriesAIPL || []).map(e => ({ ...e, company: 'AIPL' }))
+    ];
+
+    allGate.forEach(entry => {
+      const name = (entry.materialDescription || 'General Goods').trim();
+      if (!name) return;
+      const key = name.toLowerCase();
+
+      if (!map[key]) {
+        map[key] = {
+          key,
+          itemName: name,
+          sku: 'SKU-' + key.substring(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, ''),
+          uom: entry.unit || 'Kgs',
+          category: 'Raw Material',
+          warehouse: 'Main Mill Store',
+          inwardQty: 0,
+          issuedQty: 0,
+          currentStock: 0,
+          avgRate: 0,
+          totalValue: 0,
+          reorderLevel: 10,
+          isLow: false,
+          sources: []
+        };
+      }
+
+      const qty = parseNumeric(entry.quantityWeight);
+      const total = parseNumeric(entry.totalPrice);
+      const rate = parseNumeric(entry.rateUom) || (qty > 0 ? total / qty : 0);
+
+      map[key].inwardQty += qty;
+      if (rate > 0) {
+        map[key].avgRate = map[key].avgRate ? (map[key].avgRate + rate) / 2 : rate;
+      }
+      if (entry.unit) map[key].uom = entry.unit;
+      if (entry.company && !map[key].sources.includes(entry.company)) {
+        map[key].sources.push(entry.company);
+      }
+    });
+
+    // 2. Process Item Master & Manual Stock records
+    (items || []).forEach(item => {
+      const key = (item.name || '').trim().toLowerCase();
+      if (!key) return;
+
+      if (!map[key]) {
+        map[key] = {
+          key,
+          itemName: item.name,
+          sku: item.sku || 'SKU-' + item.id.substring(0, 5),
+          uom: item.uom || 'Kgs',
+          category: item.categoryId || 'Raw Material',
+          warehouse: 'Main Mill Store',
+          inwardQty: 0,
+          issuedQty: 0,
+          currentStock: 0,
+          avgRate: 150,
+          totalValue: 0,
+          reorderLevel: item.reorderLevel || 10,
+          isLow: false,
+          sources: ['Item Master']
+        };
+      } else {
+        if (item.sku) map[key].sku = item.sku;
+        if (item.reorderLevel) map[key].reorderLevel = item.reorderLevel;
+      }
+    });
+
+    // Add manual stock records if any
+    (stock || []).forEach(s => {
+      const matchedItem = items.find(i => i.id === s.itemId);
+      const key = matchedItem ? matchedItem.name.trim().toLowerCase() : String(s.itemId).trim().toLowerCase();
+      if (map[key]) {
+        map[key].inwardQty += (s.quantity > 0 ? s.quantity : 0);
+      }
+    });
+
+    // 3. Process Material Issues (Outward Quantities) to REDUCE current stock!
+    (materialIssueItems || []).forEach(mi => {
+      const matchedItem = items.find(i => i.id === mi.itemId);
+      const key = matchedItem ? matchedItem.name.trim().toLowerCase() : String(mi.itemId).trim().toLowerCase();
+      const qty = Number(mi.quantity) || 0;
+
+      if (map[key]) {
+        map[key].issuedQty += qty;
+      } else {
+        const name = matchedItem ? matchedItem.name : String(mi.itemId);
+        map[key] = {
+          key,
+          itemName: name,
+          sku: matchedItem?.sku || 'SKU-OUT',
+          uom: matchedItem?.uom || 'Kgs',
+          category: 'Issued Material',
+          warehouse: 'Production Store',
+          inwardQty: 0,
+          issuedQty: qty,
+          currentStock: 0,
+          avgRate: 100,
+          totalValue: 0,
+          reorderLevel: 10,
+          isLow: true,
+          sources: ['Department Issue']
+        };
+      }
+    });
+
+    // 4. Calculate Net Current Available Stock & Total Valuation
+    Object.values(map).forEach(item => {
+      item.currentStock = Math.max(0, item.inwardQty - item.issuedQty);
+      item.totalValue = item.currentStock * (item.avgRate || 0);
+      item.isLow = item.currentStock <= item.reorderLevel;
+    });
+
+    return Object.values(map);
+  }, [gateEntriesYashoda, gateEntriesAIPL, items, stock, materialIssueItems]);
 
   // Sync Yashoda Gate Entries to Item Master & Current Stock
   const handleSyncGateEntriesToInventory = async () => {
@@ -180,6 +321,28 @@ export default function Inventory() {
     summary.materialDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
     Array.from(summary.partyNames).some(p => String(p).toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const filteredLiveStock = useMemo(() => {
+    return liveCurrentStock.filter(st =>
+      st.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      st.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      st.category.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [liveCurrentStock, searchTerm]);
+
+  const liveTotals = useMemo(() => {
+    let inward = 0;
+    let issued = 0;
+    let current = 0;
+    let val = 0;
+    liveCurrentStock.forEach(st => {
+      inward += st.inwardQty;
+      issued += st.issuedQty;
+      current += st.currentStock;
+      val += st.totalValue;
+    });
+    return { inward, issued, current, val };
+  }, [liveCurrentStock]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val);
@@ -467,57 +630,131 @@ export default function Inventory() {
       )}
 
       {activeTab === 'stock' && (
-        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-bold">Current Stock Levels</h2>
-            <span className="text-xs text-gray-500 font-medium">
-              Total Stock Records: {stock.length}
-            </span>
+        <div className="space-y-6">
+          {/* Live Inventory Overview KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+              <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Stock Valuation</div>
+              <div className="text-xl font-black text-gray-900 dark:text-white mt-1">
+                {formatCurrency(liveTotals.val)}
+              </div>
+              <div className="text-[10px] text-gray-400 mt-1">Net valuation of available stock</div>
+            </div>
+
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+              <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Gate Inward</div>
+              <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                {liveTotals.inward.toLocaleString('en-IN')} Units
+              </div>
+              <div className="text-[10px] text-gray-400 mt-1">Gate register inward additions</div>
+            </div>
+
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+              <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Material Issued</div>
+              <div className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1">
+                {liveTotals.issued.toLocaleString('en-IN')} Units
+              </div>
+              <div className="text-[10px] text-gray-400 mt-1">Department store reductions</div>
+            </div>
+
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+              <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Net Stock Available</div>
+              <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+                {liveTotals.current.toLocaleString('en-IN')} Units
+              </div>
+              <div className="text-[10px] text-gray-400 mt-1">Inward Qty - Issued Qty</div>
+            </div>
           </div>
 
-          <div className="overflow-x-auto border rounded-lg border-gray-200 dark:border-zinc-800">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  <th className="px-4 py-3">Item Name</th>
-                  <th className="px-4 py-3">Warehouse</th>
-                  <th className="px-4 py-3 text-right">Quantity</th>
-                  <th className="px-4 py-3 text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                {(stock || []).map(s => {
-                  const item = (items || []).find(i => i.id === s.itemId);
-                  const warehouse = (warehouses || []).find(w => w.id === s.warehouseId);
-                  const isLow = item && s.quantity <= (item.reorderLevel || 0);
-                  
-                  return (
-                    <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50">
-                      <td className="px-4 py-3 font-medium">
-                        {item?.name || s.itemId || 'Unknown Item'} 
-                        <span className="text-xs text-gray-500 font-normal ml-2">{item?.sku}</span>
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 dark:border-zinc-800 pb-4">
+              <div>
+                <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Package className="w-5 h-5 text-indigo-600" /> Current Available Stock & Valuation
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Calculated dynamically from Gate Register Inward Receipts minus Department Material Issues
+                </p>
+              </div>
+
+              <div className="relative max-w-xs w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input 
+                  type="text" 
+                  placeholder="Search stock item..." 
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 text-xs outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border rounded-xl border-gray-200 dark:border-zinc-800">
+              <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3">Material / Item Description</th>
+                    <th className="px-4 py-3">Sources / Category</th>
+                    <th className="px-4 py-3 text-right">Inward Received</th>
+                    <th className="px-4 py-3 text-right">Issued Quantity</th>
+                    <th className="px-4 py-3 text-right">Net Available Stock</th>
+                    <th className="px-4 py-3 text-right">Avg Rate / Unit</th>
+                    <th className="px-4 py-3 text-right">Net Stock Value</th>
+                    <th className="px-4 py-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                  {filteredLiveStock.map(st => (
+                    <tr key={st.key} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                      <td className="px-4 py-3 font-bold text-gray-900 dark:text-white">
+                        {st.itemName}
+                        <div className="text-[10px] font-mono text-gray-400">{st.sku}</div>
                       </td>
-                      <td className="px-4 py-3">{warehouse?.name || 'Main Warehouse'}</td>
-                      <td className="px-4 py-3 text-right font-bold">{s.quantity} {item?.uom || 'units'}</td>
-                      <td className="px-4 py-3 text-right">
-                        {isLow ? (
-                          <span className="text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded-full">Low Stock</span>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1 flex-wrap">
+                          {st.sources.map((src, idx) => (
+                            <span key={idx} className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-2 py-0.5 rounded text-[10px] font-semibold">
+                              {src}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                        +{st.inwardQty.toLocaleString()} {st.uom}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-amber-600 dark:text-amber-400">
+                        -{st.issuedQty.toLocaleString()} {st.uom}
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-sm text-gray-900 dark:text-white">
+                        {st.currentStock.toLocaleString()} {st.uom}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-300">
+                        {formatCurrency(st.avgRate)} / {st.uom}
+                      </td>
+                      <td className="px-4 py-3 text-right font-extrabold font-mono text-indigo-600 dark:text-indigo-400">
+                        {formatCurrency(st.totalValue)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {st.currentStock <= 0 ? (
+                          <span className="text-[10px] font-bold text-red-600 bg-red-50 dark:bg-red-950/40 px-2 py-1 rounded-full">Out of Stock</span>
+                        ) : st.isLow ? (
+                          <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2 py-1 rounded-full">Low Stock</span>
                         ) : (
-                          <span className="text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full">Healthy</span>
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-1 rounded-full">Healthy</span>
                         )}
                       </td>
                     </tr>
-                  )
-                })}
-                {(!stock || stock.length === 0) && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                      No stock records found. Click <strong>"Sync Gate Entries to Stock"</strong> above to populate stock from Gate Register entries.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  ))}
+                  {filteredLiveStock.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                        No stock records found matching search.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
