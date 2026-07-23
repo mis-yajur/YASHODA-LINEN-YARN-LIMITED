@@ -127,21 +127,43 @@ export default function Inventory() {
       sources: string[];
     }> = {};
 
-    // 1. Process Yashoda Gate Register Inward entries ONLY for Yashoda Current Stock
-    const allGate = (gateEntriesYashoda || []).map(e => ({ ...e, company: 'Yashoda' }));
-
-    allGate.forEach(entry => {
-      const name = (entry.materialDescription || 'General Goods').trim();
+    // 1. Process Yashoda Gate Register Inward entries from gateInwardStockSummary (authoritative source)
+    gateInwardStockSummary.forEach(sum => {
+      const name = (sum.materialDescription || 'General Goods').trim();
       if (!name) return;
       const key = name.toLowerCase();
+
+      map[key] = {
+        key,
+        itemName: name,
+        sku: 'SKU-' + key.substring(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, ''),
+        uom: sum.unit || 'TON',
+        category: 'Raw Material',
+        warehouse: 'Main Mill Store',
+        inwardQty: sum.totalQty,
+        issuedQty: 0,
+        currentStock: 0,
+        avgRate: sum.totalQty > 0 ? sum.totalValue / sum.totalQty : 0,
+        totalInwardValue: sum.totalValue,
+        totalValue: sum.totalValue,
+        reorderLevel: 10,
+        isLow: false,
+        sources: Array.from(sum.companies)
+      };
+    });
+
+    // 2. Enhance metadata (SKU/reorderLevel/category) & add items from Item Master if not present
+    (items || []).forEach(item => {
+      const key = (item.name || '').trim().toLowerCase();
+      if (!key) return;
 
       if (!map[key]) {
         map[key] = {
           key,
-          itemName: name,
-          sku: 'SKU-' + key.substring(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, ''),
-          uom: entry.unit || 'Kgs',
-          category: 'Raw Material',
+          itemName: item.name,
+          sku: item.sku || 'SKU-' + item.id.substring(0, 5),
+          uom: item.uom || 'Kgs',
+          category: item.categoryId || 'Raw Material',
           warehouse: 'Main Mill Store',
           inwardQty: 0,
           issuedQty: 0,
@@ -149,34 +171,13 @@ export default function Inventory() {
           avgRate: 0,
           totalInwardValue: 0,
           totalValue: 0,
-          reorderLevel: 10,
+          reorderLevel: item.reorderLevel || 10,
           isLow: false,
-          sources: []
+          sources: ['Item Master']
         };
-      }
-
-      const qty = parseNumeric(entry.quantityWeight);
-      const entryUnit = entry.unit || map[key].uom || 'Kgs';
-      const qtyInNative = convertUnitQuantity(qty, entryUnit, map[key].uom);
-
-      const base = parseNumeric(entry.basePrice);
-      const gst = parseNumeric(entry.cgst) + parseNumeric(entry.sgst) + parseNumeric(entry.igst);
-      const totalVal = parseNumeric(entry.totalPrice) || (base + gst) || (qty * parseNumeric(entry.rateUom));
-
-      map[key].inwardQty += qtyInNative;
-      map[key].totalInwardValue += totalVal;
-
-      if (entry.company && !map[key].sources.includes(entry.company)) {
-        map[key].sources.push(entry.company);
-      }
-    });
-
-    // 2. Enhance metadata (SKU/reorderLevel) from Item Master if available
-    (items || []).forEach(item => {
-      const key = (item.name || '').trim().toLowerCase();
-      if (!key) return;
-      if (map[key]) {
+      } else {
         if (item.sku) map[key].sku = item.sku;
+        if (item.categoryId) map[key].category = item.categoryId;
         if (item.reorderLevel) map[key].reorderLevel = item.reorderLevel;
       }
     });
@@ -214,7 +215,7 @@ export default function Inventory() {
     });
 
     return Object.values(map);
-  }, [gateEntriesYashoda, items, stock, materialIssueItems]);
+  }, [gateInwardStockSummary, items, materialIssueItems]);
 
   // Sync Yashoda Gate Entries to Item Master & Current Stock
   const handleSyncGateEntriesToInventory = async () => {
