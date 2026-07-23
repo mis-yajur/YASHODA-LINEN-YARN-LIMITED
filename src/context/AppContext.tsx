@@ -44,6 +44,8 @@ interface AppContextType extends AppState {
   addStockTransfer: (transfer: Omit<StockTransfer, 'id'>) => Promise<void>;
   addStockAdjustment: (adjustment: Omit<StockAdjustment, 'id'>) => Promise<void>;
   issueMaterial: (issue: Omit<MaterialIssue, 'id'>, items: Omit<MaterialIssueItem, 'id' | 'issueId'>[]) => Promise<void>;
+  updateMaterialIssue: (issueId: string, issue: Partial<MaterialIssue>, items: Omit<MaterialIssueItem, 'id' | 'issueId'>[]) => Promise<void>;
+  deleteMaterialIssue: (issueId: string) => Promise<void>;
   receiveStock: (itemId: string, warehouseId: string, quantity: number, batchNo?: string) => Promise<void>;
 }
 
@@ -244,6 +246,92 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateMaterialIssue = async (
+    issueId: string,
+    issueData: Partial<MaterialIssue>,
+    itemsData: Omit<MaterialIssueItem, 'id' | 'issueId'>[]
+  ) => {
+    try {
+      const batch = writeBatch(db);
+      const issueRef = doc(db, 'materialIssues', issueId);
+      batch.update(issueRef, issueData);
+
+      const itemsSnapshot = await getDocs(collection(db, 'materialIssueItems'));
+      const oldIssueItems = itemsSnapshot.docs
+        .map(d => ({ id: d.id, ...(d.data() as MaterialIssueItem) }))
+        .filter(item => item.issueId === issueId);
+
+      const stockSnapshot = await getDocs(collection(db, 'stock'));
+      const allStock = stockSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as Stock) }));
+
+      // 1. Revert stock for old items and delete old issue item docs
+      for (const oldItem of oldIssueItems) {
+        const itemRef = doc(db, 'materialIssueItems', oldItem.id);
+        batch.delete(itemRef);
+
+        const existingStock = allStock.find(st => st.itemId === oldItem.itemId);
+        if (existingStock) {
+          existingStock.quantity = (existingStock.quantity as number) + Number(oldItem.quantity || 0);
+          const stockRef = doc(db, 'stock', existingStock.id);
+          batch.update(stockRef, { quantity: existingStock.quantity });
+        }
+      }
+
+      // 2. Deduct stock for new items and write new issue item docs
+      for (const newItem of itemsData) {
+        const newItemId = Date.now().toString() + Math.random().toString(36).substring(7);
+        const itemRef = doc(db, 'materialIssueItems', newItemId);
+        batch.set(itemRef, { ...newItem, id: newItemId, issueId });
+
+        const existingStock = allStock.find(st => st.itemId === newItem.itemId);
+        if (existingStock) {
+          existingStock.quantity = (existingStock.quantity as number) - Number(newItem.quantity || 0);
+          const stockRef = doc(db, 'stock', existingStock.id);
+          batch.update(stockRef, { quantity: existingStock.quantity });
+        } else {
+          const newStockId = Date.now().toString() + Math.random().toString(36).substring(7);
+          const stockRef = doc(db, 'stock', newStockId);
+          batch.set(stockRef, { itemId: newItem.itemId, warehouseId: 'default', quantity: -Number(newItem.quantity || 0) });
+        }
+      }
+
+      await batch.commit();
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, 'materialIssues');
+    }
+  };
+
+  const deleteMaterialIssue = async (issueId: string) => {
+    try {
+      const batch = writeBatch(db);
+      const issueRef = doc(db, 'materialIssues', issueId);
+      batch.delete(issueRef);
+
+      const itemsSnapshot = await getDocs(collection(db, 'materialIssueItems'));
+      const issueItems = itemsSnapshot.docs
+        .map(d => ({ id: d.id, ...(d.data() as MaterialIssueItem) }))
+        .filter(item => item.issueId === issueId);
+
+      const stockSnapshot = await getDocs(collection(db, 'stock'));
+      const allStock = stockSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as Stock) }));
+
+      for (const item of issueItems) {
+        const itemRef = doc(db, 'materialIssueItems', item.id);
+        batch.delete(itemRef);
+
+        const existingStock = allStock.find(st => st.itemId === item.itemId);
+        if (existingStock) {
+          const stockRef = doc(db, 'stock', existingStock.id);
+          batch.update(stockRef, { quantity: (existingStock.quantity as number) + Number(item.quantity || 0) });
+        }
+      }
+
+      await batch.commit();
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, 'materialIssues');
+    }
+  };
+
   const receiveStock = async (itemId: string, warehouseId: string, quantity: number, batchNo?: string) => {
     try {
       const stockSnapshot = await getDocs(collection(db, 'stock'));
@@ -301,6 +389,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     addStockTransfer,
     addStockAdjustment,
     issueMaterial,
+    updateMaterialIssue,
+    deleteMaterialIssue,
     receiveStock,
   };
 

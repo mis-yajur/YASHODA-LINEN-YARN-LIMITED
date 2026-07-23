@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowRightLeft, Search, Plus, Trash2, FileText, ArrowLeftRight, History, Printer, Eye, Building2, User, Calendar, CheckCircle2, Package, X, Scale } from 'lucide-react';
+import { ArrowRightLeft, Search, Plus, Trash2, FileText, ArrowLeftRight, History, Printer, Eye, Building2, User, Calendar, CheckCircle2, Package, X, Scale, Edit2 } from 'lucide-react';
 import { convertUnitQuantity } from '../lib/utils';
 
 export default function MaterialIssue() {
-  const { departments = [], items = [], stock = [], materialIssues = [], materialIssueItems = [], issueMaterial } = useApp();
+  const { departments = [], items = [], stock = [], materialIssues = [], materialIssueItems = [], issueMaterial, updateMaterialIssue, deleteMaterialIssue } = useApp();
   const [activeTab, setActiveTab] = useState<'issue' | 'history' | 'requisition' | 'returns'>('issue');
 
   const [departmentId, setDepartmentId] = useState('');
@@ -20,6 +20,74 @@ export default function MaterialIssue() {
   const [historySearch, setHistorySearch] = useState('');
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
   const [selectedIssueDetail, setSelectedIssueDetail] = useState<any>(null);
+
+  // Edit issue modal state
+  const [editingIssue, setEditingIssue] = useState<any>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editDepartmentId, setEditDepartmentId] = useState('');
+  const [editIssuedBy, setEditIssuedBy] = useState('');
+  const [editReceivedBy, setEditReceivedBy] = useState('');
+  const [editIssueItems, setEditIssueItems] = useState<{ itemId: string; quantity: number; unit?: string }[]>([]);
+  const [editSelectedItem, setEditSelectedItem] = useState('');
+  const [editQuantity, setEditQuantity] = useState(1);
+  const [editIssueUnit, setEditIssueUnit] = useState('Kgs');
+
+  const handleOpenEditModal = (issue: any) => {
+    setEditingIssue(issue);
+    setEditDepartmentId(issue.departmentId || '');
+    setEditIssuedBy(issue.issuedBy || '');
+    setEditReceivedBy(issue.receivedBy || '');
+    setEditIssueItems(
+      issue.items
+        ? issue.items.map((i: any) => ({ itemId: i.itemId, quantity: Number(i.quantity) || 1, unit: i.unit || 'Kgs' }))
+        : []
+    );
+    setEditSelectedItem('');
+    setEditQuantity(1);
+    setEditIssueUnit('Kgs');
+    setIsEditModalOpen(true);
+  };
+
+  const handleAddEditItem = () => {
+    if (!editSelectedItem || editQuantity <= 0) return;
+    setEditIssueItems([...editIssueItems, { itemId: editSelectedItem, quantity: editQuantity, unit: editIssueUnit }]);
+    setEditSelectedItem('');
+    setEditQuantity(1);
+    setEditIssueUnit('Kgs');
+  };
+
+  const handleRemoveEditItem = (index: number) => {
+    setEditIssueItems(editIssueItems.filter((_, i) => i !== index));
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingIssue || !editDepartmentId || editIssueItems.length === 0) return;
+    await updateMaterialIssue(
+      editingIssue.id,
+      {
+        departmentId: editDepartmentId,
+        issuedBy: editIssuedBy,
+        receivedBy: editReceivedBy,
+      },
+      editIssueItems
+    );
+    setIsEditModalOpen(false);
+    setEditingIssue(null);
+    alert('Material Issue Voucher updated successfully!');
+  };
+
+  const handleDeleteIssue = async (issue: any) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete Material Issue Voucher #${issue.id.substring(0, 8)}?\n\nDeleting this voucher will automatically revert/restore the deducted stock in inventory.`
+    );
+    if (!confirmed) return;
+    await deleteMaterialIssue(issue.id);
+    if (selectedIssueDetail?.id === issue.id) {
+      setSelectedIssueDetail(null);
+    }
+    alert('Material Issue Voucher deleted and deducted stock restored to inventory.');
+  };
 
   const handleSelectItemChange = (itemId: string) => {
     setSelectedItem(itemId);
@@ -347,6 +415,13 @@ export default function MaterialIssue() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                <button
+                  onClick={() => setActiveTab('issue')}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+                >
+                  <Plus className="w-4 h-4" /> Add Issue Entry
+                </button>
+
                 <select
                   value={selectedDeptFilter}
                   onChange={e => setSelectedDeptFilter(e.target.value)}
@@ -424,12 +499,31 @@ export default function MaterialIssue() {
                         </span>
                       </td>
                       <td className="p-3 text-right">
-                        <button
-                          onClick={() => setSelectedIssueDetail(issue)}
-                          className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300 px-3 py-1.5 rounded-lg font-bold text-xs inline-flex items-center gap-1 transition-all"
-                        >
-                          <Eye className="w-3.5 h-3.5" /> View Slip
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => setSelectedIssueDetail(issue)}
+                            title="View Slip"
+                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300 px-2.5 py-1.5 rounded-lg font-bold text-xs inline-flex items-center gap-1 transition-all"
+                          >
+                            <Eye className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Slip</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenEditModal(issue)}
+                            title="Edit Material Issue"
+                            className="bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-300 px-2.5 py-1.5 rounded-lg font-bold text-xs inline-flex items-center gap-1 transition-all"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" /> Edit
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteIssue(issue)}
+                            title="Delete Material Issue"
+                            className="bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-300 px-2.5 py-1.5 rounded-lg font-bold text-xs inline-flex items-center gap-1 transition-all"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -573,13 +667,31 @@ export default function MaterialIssue() {
               </div>
             </div>
 
-            <div className="flex justify-between items-center pt-4 border-t border-gray-100 dark:border-zinc-800">
-              <button
-                onClick={() => window.print()}
-                className="bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2"
-              >
-                <Printer className="w-4 h-4" /> Print Issue Slip
-              </button>
+            <div className="flex justify-between items-center pt-4 border-t border-gray-100 dark:border-zinc-800 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-800 dark:text-gray-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                >
+                  <Printer className="w-4 h-4" /> Print Slip
+                </button>
+                <button
+                  onClick={() => {
+                    const issueToEdit = selectedIssueDetail;
+                    setSelectedIssueDetail(null);
+                    handleOpenEditModal(issueToEdit);
+                  }}
+                  className="bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-300 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                >
+                  <Edit2 className="w-4 h-4" /> Edit Voucher
+                </button>
+                <button
+                  onClick={() => handleDeleteIssue(selectedIssueDetail)}
+                  className="bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-300 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-4 h-4" /> Delete Voucher
+                </button>
+              </div>
 
               <button
                 onClick={() => setSelectedIssueDetail(null)}
@@ -588,6 +700,207 @@ export default function MaterialIssue() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT MATERIAL ISSUE MODAL */}
+      {isEditModalOpen && editingIssue && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-6 my-8">
+            <div className="flex justify-between items-start border-b border-gray-100 dark:border-zinc-800 pb-4">
+              <div>
+                <div className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Edit2 className="w-3.5 h-3.5" /> Edit Mode
+                </div>
+                <h3 className="text-xl font-black text-gray-900 dark:text-white">Edit Store Material Issue Voucher</h3>
+                <p className="text-xs text-gray-500">Ref ID: #{editingIssue.id}</p>
+              </div>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                    Issuing Department *
+                  </label>
+                  <select
+                    required
+                    value={editDepartmentId}
+                    onChange={e => setEditDepartmentId(e.target.value)}
+                    className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 text-xs font-bold outline-none"
+                  >
+                    <option value="">Select Department...</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                    Issued By (Store Officer)
+                  </label>
+                  <input
+                    type="text"
+                    value={editIssuedBy}
+                    onChange={e => setEditIssuedBy(e.target.value)}
+                    placeholder="e.g. Ramesh Kumar"
+                    className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 text-xs outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                    Received By (Department Rep)
+                  </label>
+                  <input
+                    type="text"
+                    value={editReceivedBy}
+                    onChange={e => setEditReceivedBy(e.target.value)}
+                    placeholder="e.g. Suresh Patel"
+                    className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 text-xs outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Items Section */}
+              <div className="border-t border-gray-100 dark:border-zinc-800 pt-4 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Issued Materials List</h4>
+
+                <div className="flex flex-col sm:flex-row gap-3 items-end bg-gray-50 dark:bg-zinc-800/50 p-3 rounded-xl">
+                  <div className="flex-1 w-full">
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1">Material / Item</label>
+                    <select
+                      value={editSelectedItem}
+                      onChange={e => {
+                        setEditSelectedItem(e.target.value);
+                        const matched = items.find(i => i.id === e.target.value);
+                        if (matched?.uom) setEditIssueUnit(matched.uom);
+                      }}
+                      className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-xs outline-none"
+                    >
+                      <option value="">Select Item to add...</option>
+                      {items.map(i => (
+                        <option key={i.id} value={i.id}>{i.name} ({i.sku}) - UOM: {i.uom || 'Kgs'}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="w-full sm:w-28">
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1">Qty</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.001"
+                      value={editQuantity}
+                      onChange={e => setEditQuantity(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-xs outline-none font-bold"
+                    />
+                  </div>
+
+                  <div className="w-full sm:w-28">
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1">Unit</label>
+                    <select
+                      value={editIssueUnit}
+                      onChange={e => setEditIssueUnit(e.target.value)}
+                      className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-xs outline-none font-bold text-indigo-600 dark:text-indigo-400"
+                    >
+                      <option value="Kgs">Kgs</option>
+                      <option value="TON">TON</option>
+                      <option value="MT">MT</option>
+                      <option value="Quintal">Quintal</option>
+                      <option value="Grams">Grams</option>
+                      <option value="Mtrs">Mtrs</option>
+                      <option value="Pcs">Pcs</option>
+                      <option value="Bags">Bags</option>
+                      <option value="Nos">Nos</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddEditItem}
+                    className="w-full sm:w-auto bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-lg text-xs font-bold transition-all"
+                  >
+                    + Add
+                  </button>
+                </div>
+
+                <div className="border border-gray-100 dark:border-zinc-800 rounded-xl overflow-hidden text-xs">
+                  <table className="w-full text-left">
+                    <thead className="bg-gray-100 dark:bg-zinc-800 font-semibold text-gray-500">
+                      <tr>
+                        <th className="p-2.5">Item Name</th>
+                        <th className="p-2.5">Quantity & Unit</th>
+                        <th className="p-2.5">Stock Deduction</th>
+                        <th className="p-2.5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                      {editIssueItems.map((item, idx) => {
+                        const matchedItem = items.find(i => i.id === item.itemId);
+                        const unit = item.unit || matchedItem?.uom || 'Kgs';
+                        const targetUom = matchedItem?.uom || 'Kgs';
+                        const converted = convertUnitQuantity(item.quantity, unit, targetUom);
+                        return (
+                          <tr key={idx}>
+                            <td className="p-2.5 font-semibold text-gray-900 dark:text-white">
+                              {matchedItem?.name || item.itemId}
+                            </td>
+                            <td className="p-2.5 font-bold text-amber-600">
+                              {item.quantity} {unit}
+                            </td>
+                            <td className="p-2.5 font-bold text-indigo-600 dark:text-indigo-400">
+                              -{converted.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {targetUom}
+                            </td>
+                            <td className="p-2.5 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveEditItem(idx)}
+                                className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-1 rounded-lg"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {editIssueItems.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="p-4 text-center text-gray-400">
+                            No items added to this issue voucher. Add at least one item above.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-gray-700 dark:text-gray-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editIssueItems.length === 0}
+                  className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold text-xs shadow-md"
+                >
+                  Save Voucher Changes
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
