@@ -36,6 +36,7 @@ export default function Inventory() {
   const [activeTab, setActiveTab] = useState<'stock' | 'gateInward' | 'items' | 'transfers' | 'adjustments'>('stock');
   const [itemMasterSubTab, setItemMasterSubTab] = useState<'catalog' | 'gateLogs'>('catalog');
   const [gateInwardStoreTab, setGateInwardStoreTab] = useState<'Yashoda' | 'AIPL'>('Yashoda');
+  const [stockUnitMode, setStockUnitMode] = useState<'TON' | 'KGS' | 'NATIVE'>('TON');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'item' | 'transfer' | 'adjustment'>('item');
@@ -483,19 +484,56 @@ export default function Inventory() {
     );
   }, [liveCurrentStock, searchTerm]);
 
+  const formatStockItemDisplay = (st: typeof liveCurrentStock[0]) => {
+    let displayUom = st.uom;
+    let displayInward = st.inwardQty;
+    let displayIssued = st.issuedQty;
+    let displayCurrent = st.currentStock;
+    let displayRate = st.avgRate;
+
+    const isRatePerTon = st.avgRate >= 5000 || st.uom.toUpperCase().includes('TON') || st.uom.toUpperCase().includes('MT');
+
+    if (stockUnitMode === 'TON') {
+      displayUom = 'TON';
+      displayInward = convertUnitQuantity(st.inwardQty, st.uom, 'TON');
+      displayIssued = convertUnitQuantity(st.issuedQty, st.uom, 'TON');
+      displayCurrent = convertUnitQuantity(st.currentStock, st.uom, 'TON');
+      displayRate = isRatePerTon ? st.avgRate : st.avgRate * 1000;
+    } else if (stockUnitMode === 'KGS') {
+      displayUom = 'Kgs';
+      displayInward = convertUnitQuantity(st.inwardQty, st.uom, 'KGS');
+      displayIssued = convertUnitQuantity(st.issuedQty, st.uom, 'KGS');
+      displayCurrent = convertUnitQuantity(st.currentStock, st.uom, 'KGS');
+      displayRate = isRatePerTon ? st.avgRate / 1000 : st.avgRate;
+    } else {
+      displayUom = st.uom;
+      displayRate = st.avgRate;
+    }
+
+    return {
+      displayUom,
+      displayInward: Math.round((displayInward + Number.EPSILON) * 100) / 100,
+      displayIssued: Math.round((displayIssued + Number.EPSILON) * 100) / 100,
+      displayCurrent: Math.round((displayCurrent + Number.EPSILON) * 100) / 100,
+      displayRate: Math.round((displayRate + Number.EPSILON) * 100) / 100,
+      totalValue: st.totalValue
+    };
+  };
+
   const liveTotals = useMemo(() => {
     let inward = 0;
     let issued = 0;
     let current = 0;
     let val = 0;
     liveCurrentStock.forEach(st => {
-      inward += st.inwardQty;
-      issued += st.issuedQty;
-      current += st.currentStock;
+      const formatted = formatStockItemDisplay(st);
+      inward += formatted.displayInward;
+      issued += formatted.displayIssued;
+      current += formatted.displayCurrent;
       val += st.totalValue;
     });
     return { inward, issued, current, val };
-  }, [liveCurrentStock]);
+  }, [liveCurrentStock, stockUnitMode]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val);
@@ -989,7 +1027,7 @@ export default function Inventory() {
             <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
               <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Gate Inward</div>
               <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-                {liveTotals.inward.toLocaleString('en-IN')} Units
+                {liveTotals.inward.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {stockUnitMode === 'NATIVE' ? 'Units' : stockUnitMode}
               </div>
               <div className="text-[10px] text-gray-400 mt-1">Gate register inward additions</div>
             </div>
@@ -997,7 +1035,7 @@ export default function Inventory() {
             <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
               <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Material Issued</div>
               <div className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1">
-                {liveTotals.issued.toLocaleString('en-IN')} Units
+                {liveTotals.issued.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {stockUnitMode === 'NATIVE' ? 'Units' : stockUnitMode}
               </div>
               <div className="text-[10px] text-gray-400 mt-1">Department store reductions</div>
             </div>
@@ -1005,7 +1043,7 @@ export default function Inventory() {
             <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
               <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Net Stock Available</div>
               <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
-                {liveTotals.current.toLocaleString('en-IN')} Units
+                {liveTotals.current.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {stockUnitMode === 'NATIVE' ? 'Units' : stockUnitMode}
               </div>
               <div className="text-[10px] text-gray-400 mt-1">Inward Qty - Issued Qty</div>
             </div>
@@ -1022,15 +1060,51 @@ export default function Inventory() {
                 </p>
               </div>
 
-              <div className="relative max-w-xs w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input 
-                  type="text" 
-                  placeholder="Search stock item..." 
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 text-xs outline-none"
-                />
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-zinc-800 p-1 rounded-xl text-xs">
+                  <span className="text-[10px] font-bold text-gray-500 px-2 uppercase">Unit Mode:</span>
+                  <button
+                    onClick={() => setStockUnitMode('TON')}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                      stockUnitMode === 'TON'
+                        ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    TON (Tonnes)
+                  </button>
+                  <button
+                    onClick={() => setStockUnitMode('KGS')}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                      stockUnitMode === 'KGS'
+                        ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    KGS (Kg)
+                  </button>
+                  <button
+                    onClick={() => setStockUnitMode('NATIVE')}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                      stockUnitMode === 'NATIVE'
+                        ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Native UOM
+                  </button>
+                </div>
+
+                <div className="relative max-w-xs w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input 
+                    type="text" 
+                    placeholder="Search stock item..." 
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 text-xs outline-none"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1049,47 +1123,50 @@ export default function Inventory() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                  {filteredLiveStock.map(st => (
-                    <tr key={st.key} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
-                      <td className="px-4 py-3 font-bold text-gray-900 dark:text-white">
-                        {st.itemName}
-                        <div className="text-[10px] font-mono text-gray-400">{st.sku}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1 flex-wrap">
-                          {st.sources.map((src, idx) => (
-                            <span key={idx} className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-2 py-0.5 rounded text-[10px] font-semibold">
-                              {src}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
-                        +{st.inwardQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {st.uom}
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-amber-600 dark:text-amber-400">
-                        -{st.issuedQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {st.uom}
-                      </td>
-                      <td className="px-4 py-3 text-right font-black text-sm text-gray-900 dark:text-white">
-                        {st.currentStock.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {st.uom}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-300">
-                        {formatCurrency(st.avgRate)} / {st.uom}
-                      </td>
-                      <td className="px-4 py-3 text-right font-extrabold font-mono text-indigo-600 dark:text-indigo-400">
-                        {formatCurrency(st.totalValue)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {st.currentStock <= 0 ? (
-                          <span className="text-[10px] font-bold text-red-600 bg-red-50 dark:bg-red-950/40 px-2 py-1 rounded-full">Out of Stock</span>
-                        ) : st.isLow ? (
-                          <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2 py-1 rounded-full">Low Stock</span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-1 rounded-full">Healthy</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredLiveStock.map(st => {
+                    const fmt = formatStockItemDisplay(st);
+                    return (
+                      <tr key={st.key} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                        <td className="px-4 py-3 font-bold text-gray-900 dark:text-white">
+                          {st.itemName}
+                          <div className="text-[10px] font-mono text-gray-400">{st.sku}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1 flex-wrap">
+                            {st.sources.map((src, idx) => (
+                              <span key={idx} className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-2 py-0.5 rounded text-[10px] font-semibold">
+                                {src}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                          +{fmt.displayInward.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {fmt.displayUom}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-amber-600 dark:text-amber-400">
+                          -{fmt.displayIssued.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {fmt.displayUom}
+                        </td>
+                        <td className="px-4 py-3 text-right font-black text-sm text-gray-900 dark:text-white">
+                          {fmt.displayCurrent.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {fmt.displayUom}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-300">
+                          {formatCurrency(fmt.displayRate)} / {fmt.displayUom}
+                        </td>
+                        <td className="px-4 py-3 text-right font-extrabold font-mono text-indigo-600 dark:text-indigo-400">
+                          {formatCurrency(fmt.totalValue)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {st.currentStock <= 0 ? (
+                            <span className="text-[10px] font-bold text-red-600 bg-red-50 dark:bg-red-950/40 px-2 py-1 rounded-full">Out of Stock</span>
+                          ) : st.isLow ? (
+                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2 py-1 rounded-full">Low Stock</span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-1 rounded-full">Healthy</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {filteredLiveStock.length === 0 && (
                     <tr>
                       <td colSpan={8} className="px-4 py-8 text-center text-gray-500">

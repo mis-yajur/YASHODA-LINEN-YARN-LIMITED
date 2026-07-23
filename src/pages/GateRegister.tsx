@@ -41,7 +41,20 @@ export default function GateRegister() {
     }
     alert(`Bulk upload completed for ${companyType === 'Yashoda' ? 'Yashoda' : 'Contractor AIPL'}`);
   };
-  const [sheetEntries, setSheetEntries] = useState<Omit<GateEntry, 'id'>[]>([]);
+  // Unique material descriptions from previous entries and items
+  const uniqueMaterialDescriptions = useMemo(() => {
+    const set = new Set<string>();
+    (gateEntriesYashoda || []).forEach(e => {
+      if (e.materialDescription?.trim()) set.add(e.materialDescription.trim());
+    });
+    (gateEntriesAIPL || []).forEach(e => {
+      if (e.materialDescription?.trim()) set.add(e.materialDescription.trim());
+    });
+    (items || []).forEach(i => {
+      if (i.name?.trim()) set.add(i.name.trim());
+    });
+    return Array.from(set).sort();
+  }, [gateEntriesYashoda, gateEntriesAIPL, items]);
   
   
   // Auth State
@@ -460,8 +473,23 @@ export default function GateRegister() {
                   <input required type="text" value={formData.partyName} onChange={e => setFormData({...formData, partyName: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Material Description</label>
-                  <input required type="text" value={formData.materialDescription} onChange={e => setFormData({...formData, materialDescription: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
+                  <label className="block text-sm font-medium mb-1">
+                    Material Description <span className="text-xs text-gray-500 font-normal">(Auto-suggest or type new)</span>
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    list="material-descriptions-list"
+                    placeholder="Type or select existing material..."
+                    value={formData.materialDescription}
+                    onChange={e => setFormData({...formData, materialDescription: e.target.value})}
+                    className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700 font-medium"
+                  />
+                  <datalist id="material-descriptions-list">
+                    {uniqueMaterialDescriptions.map((desc, idx) => (
+                      <option key={idx} value={desc} />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                     <label className="block text-sm font-medium mb-1">GST No.</label>
