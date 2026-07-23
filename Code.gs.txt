@@ -5,13 +5,27 @@
 
 function doPost(e) {
   try {
+    if (!e || !e.postData || !e.postData.contents) {
+      throw new Error("No data received");
+    }
+
     // Parse the payload correctly handling CORS text/plain fallback
     var payload = JSON.parse(e.postData.contents);
     var action = payload.action;
     var sheetName = payload.sheetName;
     var data = payload.data;
+    var spreadsheetId = payload.spreadsheetId;
     
-    var doc = SpreadsheetApp.getActiveSpreadsheet();
+    var doc;
+    if (spreadsheetId) {
+      doc = SpreadsheetApp.openById(spreadsheetId);
+    } else {
+      doc = SpreadsheetApp.getActiveSpreadsheet();
+    }
+    
+    if (!doc) {
+      throw new Error("Could not find active spreadsheet. Please provide a Spreadsheet ID or link the script to a Google Sheet.");
+    }
     
     // Map sheet names
     var sheetNameMapping = {
@@ -51,7 +65,7 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({ success: true }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString(), trace: error.stack }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 }

@@ -66,7 +66,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const savedUrl = state.scriptUrl || localStorage.getItem('yashoda_inventory_script_url');
       if (savedUrl) {
         // Use Google Apps Script Web App
-        await fetch(savedUrl, {
+        const res = await fetch(savedUrl, {
           method: 'POST',
           headers: {
             // Using text/plain avoids CORS preflight OPTIONS request
@@ -75,9 +75,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           body: JSON.stringify({
             action: actionName,
             sheetName: sheetName,
-            data: payload
+            data: payload,
+            spreadsheetId: localStorage.getItem('yashoda_inventory_spreadsheet_id')
           })
         });
+        const result = await res.json();
+        if (!result.success) {
+          console.error("Apps Script Error:", result.error, result.trace);
+        }
       } else {
         // Fallback to Google Sheets API (OAuth) if Apps Script isn't configured
         const { appendRow } = await import('../lib/sheets');
