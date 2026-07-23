@@ -333,31 +333,27 @@ export default function GateRegister() {
           <table className="w-full text-left whitespace-nowrap">
             <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm font-medium text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="px-4 py-3">SL. No</th>
+                <th className="px-4 py-3">{companyType === 'AIPL' ? 'SL' : 'SL. No'}</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Vehicle No.</th>
                 <th className="px-4 py-3">Party Name</th>
-                {companyType === 'AIPL' && hasGstNo && <th className="px-4 py-3">GST No.</th>}
+                <th className="px-4 py-3">GST No.</th>
                 <th className="px-4 py-3">Material Description</th>
                 <th className="px-4 py-3">Quantity</th>
                 <th className="px-4 py-3">UOM</th>
-                {companyType === 'AIPL' && (
-                  <>
-                    {hasRateUom && <th className="px-4 py-3">RATE/UOM</th>}
-                    {hasBasePrice && <th className="px-4 py-3">Base Price</th>}
-                    {hasSgst && <th className="px-4 py-3">SGST</th>}
-                    {hasCgst && <th className="px-4 py-3">CGST</th>}
-                    {hasIgst && <th className="px-4 py-3">IGST</th>}
-                    {hasTotalPrice && <th className="px-4 py-3">Total Price</th>}
-                    {hasEwayBill && <th className="px-4 py-3">e-Way Bill</th>}
-                  </>
-                )}
-                {hasInvoiceNoValue && <th className="px-4 py-3">Invoice No./Value</th>}
-                {hasInTime && <th className="px-4 py-3">In Time</th>}
-                {hasOutTime && <th className="px-4 py-3">Out Time</th>}
-                {hasDriverLicenceNo && <th className="px-4 py-3">Driver Licence No.</th>}
-                {hasContactNoSign && <th className="px-4 py-3">Contact No./Sign.</th>}
-                {hasSecuritySign && <th className="px-4 py-3">Security Sign.</th>}
+                <th className="px-4 py-3">RATE/UOM</th>
+                <th className="px-4 py-3">Base Price</th>
+                <th className="px-4 py-3">SGST</th>
+                <th className="px-4 py-3">CGST</th>
+                <th className="px-4 py-3">IGST</th>
+                <th className="px-4 py-3">Total Price</th>
+                <th className="px-4 py-3">e-Way Bill</th>
+                <th className="px-4 py-3">Invoice No./Value</th>
+                <th className="px-4 py-3">In Time</th>
+                <th className="px-4 py-3">Out Time</th>
+                <th className="px-4 py-3">Driver Licence No.</th>
+                <th className="px-4 py-3">Contact No./Sign.</th>
+                <th className="px-4 py-3">Security Sign.</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -367,28 +363,24 @@ export default function GateRegister() {
                   <td className="px-4 py-3 font-medium">{entry.slNo}</td>
                   <td className="px-4 py-3">{entry.date}</td>
                   <td className="px-4 py-3">{entry.vehicleNo || '-'}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{entry.partyName}</td>
-                  {companyType === 'AIPL' && hasGstNo && <td className="px-4 py-3">{entry.gstNo || '-'}</td>}
-                  <td className="px-4 py-3 truncate max-w-[200px]" title={entry.materialDescription}>{entry.materialDescription}</td>
-                  <td className="px-4 py-3">{entry.quantityWeight}</td>
-                  <td className="px-4 py-3">{entry.unit}</td>
-                  {companyType === 'AIPL' && (
-                    <>
-                      {hasRateUom && <td className="px-4 py-3">{entry.rateUom || '-'}</td>}
-                      {hasBasePrice && <td className="px-4 py-3">{entry.basePrice || '-'}</td>}
-                      {hasSgst && <td className="px-4 py-3">{entry.sgst || '-'}</td>}
-                      {hasCgst && <td className="px-4 py-3">{entry.cgst || '-'}</td>}
-                      {hasIgst && <td className="px-4 py-3">{entry.igst || '-'}</td>}
-                      {hasTotalPrice && <td className="px-4 py-3">{entry.totalPrice || '-'}</td>}
-                      {hasEwayBill && <td className="px-4 py-3">{entry.ewayBill || '-'}</td>}
-                    </>
-                  )}
-                  {hasInvoiceNoValue && <td className="px-4 py-3">{entry.invoiceNoValue || '-'}</td>}
-                  {hasInTime && <td className="px-4 py-3">{entry.inTime || '-'}</td>}
-                  {hasOutTime && <td className="px-4 py-3">{entry.outTime || '-'}</td>}
-                  {hasDriverLicenceNo && <td className="px-4 py-3">{entry.driverLicenceNo || '-'}</td>}
-                  {hasContactNoSign && <td className="px-4 py-3">{entry.contactNoSign || '-'}</td>}
-                  {hasSecuritySign && <td className="px-4 py-3">{entry.securitySign || '-'}</td>}
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{entry.partyName || '-'}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{entry.gstNo || '-'}</td>
+                  <td className="px-4 py-3 truncate max-w-[200px]" title={entry.materialDescription}>{entry.materialDescription || '-'}</td>
+                  <td className="px-4 py-3 font-semibold text-emerald-600 dark:text-emerald-400">{entry.quantityWeight || '-'}</td>
+                  <td className="px-4 py-3 text-xs">{entry.unit || '-'}</td>
+                  <td className="px-4 py-3 font-mono">{entry.rateUom || '-'}</td>
+                  <td className="px-4 py-3 font-mono">{entry.basePrice || '-'}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{entry.sgst || '-'}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{entry.cgst || '-'}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{entry.igst || '-'}</td>
+                  <td className="px-4 py-3 font-extrabold font-mono text-gray-900 dark:text-white">{entry.totalPrice || '-'}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{entry.ewayBill || '-'}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{entry.invoiceNoValue || '-'}</td>
+                  <td className="px-4 py-3 text-xs">{entry.inTime || '-'}</td>
+                  <td className="px-4 py-3 text-xs">{entry.outTime || '-'}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{entry.driverLicenceNo || '-'}</td>
+                  <td className="px-4 py-3 text-xs">{entry.contactNoSign || '-'}</td>
+                  <td className="px-4 py-3 text-xs">{entry.securitySign || '-'}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-2 opacity-100 transition-opacity">
                       <button onClick={(e) => { e.stopPropagation(); handleEdit(entry); }} className="p-1 text-gray-500 hover:text-indigo-600 transition-colors" title="Edit">
@@ -403,7 +395,7 @@ export default function GateRegister() {
               ))}
               {currentEntries.length === 0 && (
                 <tr>
-                  <td colSpan={21} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={22} className="px-4 py-8 text-center text-gray-500">
                     No entries found
                   </td>
                 </tr>
