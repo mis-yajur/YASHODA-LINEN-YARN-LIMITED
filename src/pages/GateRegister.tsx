@@ -99,48 +99,73 @@ export default function GateRegister() {
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = async (evt) => {
       const text = evt.target?.result;
       if (typeof text !== 'string') return;
       
       const rows = text.split('\n').map(row => row.split(',').map(cell => cell.replace(/^"|"$/g, '').trim()));
-      // Assuming headers are on the first row
+      
       if (rows.length > 1) {
-        
         try {
           let currentSlNo = allEntries.length;
           for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
-            if (row.length < 5) continue; // Skip empty rows
-            
+            if (row.length < 4) continue;
             currentSlNo++;
-            const entry: any = {
-              slNo: currentSlNo.toString(),
-              date: row[1] || '',
-              vehicleNo: row[2] || '',
-              partyName: row[3] || '',
-              materialDescription: row[4] || '',
-              quantityWeight: row[5] || '',
-              unit: row[6] || 'Kgs',
-              inTime: row[7] || '',
-              outTime: row[8] || '',
-              invoiceNoValue: row[9] || '',
-              driverLicenceNo: row[10] || '',
-              contactNoSign: row[11] || '',
-              securitySign: row[12] || '',
-              companyType
-            };
             
-            await addGateEntry(entry);
+            // Adjust mapping based on companyType
+            let entry = {};
+            if (companyType === 'AIPL') {
+              entry = {
+                companyType,
+                slNo: currentSlNo.toString(),
+                date: row[1] || '',
+                vehicleNo: row[2] || '',
+                partyName: row[3] || '',
+                gstNo: row[4] || '',
+                materialDescription: row[5] || '',
+                quantityWeight: row[6] || '',
+                unit: row[7] || 'Kgs',
+                rateUom: row[8] || '',
+                basePrice: row[9] || '',
+                sgst: row[10] || '',
+                cgst: row[11] || '',
+                igst: row[12] || '',
+                totalPrice: row[13] || '',
+                ewayBill: row[14] || '',
+                invoiceNoValue: row[15] || '',
+                inTime: row[16] || '',
+                outTime: row[17] || '',
+                driverLicenceNo: row[18] || '',
+                contactNoSign: row[19] || '',
+                securitySign: row[20] || ''
+              };
+            } else {
+              entry = {
+                companyType,
+                slNo: currentSlNo.toString(),
+                date: row[1] || '',
+                vehicleNo: row[2] || '',
+                partyName: row[3] || '',
+                materialDescription: row[4] || '',
+                quantityWeight: row[5] || '',
+                unit: row[6] || 'Kgs',
+                inTime: row[7] || '',
+                outTime: row[8] || '',
+                invoiceNoValue: row[9] || '',
+                driverLicenceNo: row[10] || '',
+                contactNoSign: row[11] || '',
+                securitySign: row[12] || ''
+              };
+            }
+            await addGateEntry(entry as any);
           }
-        } catch (e) {
-          console.error("Failed to import", e);
-          alert("Import failed partially or completely.");
+          alert("Import successful");
+        } catch (error) {
+          console.error('Import failed', error);
+          alert('Import failed. Please check the CSV format.');
         } finally {
-          
-          // Reset file input
           e.target.value = '';
         }
       }
@@ -231,18 +256,6 @@ export default function GateRegister() {
               <Download className="w-4 h-4 rotate-180" /> Import CSV
             </button>
           </div>
-          <div className="relative overflow-hidden inline-block">
-            <input 
-              type="file" 
-              accept=".csv" 
-              onChange={handleImport} 
-              className="absolute inset-0 opacity-0 cursor-pointer" 
-              title="Import CSV"
-            />
-            <button className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium">
-              <Download className="w-4 h-4 rotate-180" /> Import CSV
-            </button>
-          </div>
           <button onClick={handleExport} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium">
             <Download className="w-4 h-4" /> Export CSV
           </button>
@@ -291,14 +304,14 @@ export default function GateRegister() {
           <table className="w-full text-left whitespace-nowrap">
             <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm font-medium text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="px-4 py-3">SL. No</th>
+                <th className="px-4 py-3">SL</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Vehicle No.</th>
                 <th className="px-4 py-3">Party Name</th>
                 {companyType === 'AIPL' && <th className="px-4 py-3">GST No.</th>}
                 <th className="px-4 py-3">Material Description</th>
-                <th className="px-4 py-3">Quantity & Weight</th>
-                <th className="px-4 py-3">Unit</th>
+                <th className="px-4 py-3">Quantity</th>
+                <th className="px-4 py-3">UOM</th>
                 {companyType === 'AIPL' && (
                   <>
                     <th className="px-4 py-3">RATE/UOM</th>
@@ -314,7 +327,8 @@ export default function GateRegister() {
                 <th className="px-4 py-3">In Time</th>
                 <th className="px-4 py-3">Out Time</th>
                 <th className="px-4 py-3">Driver Licence No.</th>
-                <th className="px-4 py-3">Contact No.</th>
+                <th className="px-4 py-3">Contact No./Sign.</th>
+                <th className="px-4 py-3">Security Sign.</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-zinc-800 text-sm">
@@ -344,6 +358,7 @@ export default function GateRegister() {
                   <td className="px-4 py-3">{entry.outTime || '-'}</td>
                   <td className="px-4 py-3">{entry.driverLicenceNo || '-'}</td>
                   <td className="px-4 py-3">{entry.contactNoSign || '-'}</td>
+                  <td className="px-4 py-3">{entry.securitySign || '-'}</td>
                 </tr>
               ))}
               {currentEntries.length === 0 && (
@@ -410,8 +425,14 @@ export default function GateRegister() {
                   <label className="block text-sm font-medium mb-1">Material Description</label>
                   <input required type="text" value={formData.materialDescription} onChange={e => setFormData({...formData, materialDescription: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
                 </div>
+                {companyType === 'AIPL' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">GST No.</label>
+                    <input type="text" value={formData.gstNo} onChange={e => setFormData({...formData, gstNo: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
+                  </div>
+                )}
                 <div>
-                  <label className="block text-sm font-medium mb-1">Quantity & Weight</label>
+                  <label className="block text-sm font-medium mb-1">Quantity</label>
                   <div className="flex gap-2">
                     <input required type="text" value={formData.quantityWeight} onChange={e => setFormData({...formData, quantityWeight: e.target.value})} className="flex-1 p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
                     <select value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} className="w-24 p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700">
@@ -424,6 +445,38 @@ export default function GateRegister() {
                     </select>
                   </div>
                 </div>
+                {companyType === 'AIPL' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">RATE/UOM</label>
+                      <input type="text" value={formData.rateUom} onChange={e => setFormData({...formData, rateUom: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Base Price</label>
+                      <input type="text" value={formData.basePrice} onChange={e => setFormData({...formData, basePrice: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">SGST</label>
+                      <input type="text" value={formData.sgst} onChange={e => setFormData({...formData, sgst: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">CGST</label>
+                      <input type="text" value={formData.cgst} onChange={e => setFormData({...formData, cgst: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">IGST</label>
+                      <input type="text" value={formData.igst} onChange={e => setFormData({...formData, igst: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Total Price</label>
+                      <input type="text" value={formData.totalPrice} onChange={e => setFormData({...formData, totalPrice: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">e-Way Bill</label>
+                      <input type="text" value={formData.ewayBill} onChange={e => setFormData({...formData, ewayBill: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
+                    </div>
+                  </>
+                )}
                 <div>
                   <label className="block text-sm font-medium mb-1">Invoice No. / Value</label>
                   <input type="text" value={formData.invoiceNoValue} onChange={e => setFormData({...formData, invoiceNoValue: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
@@ -441,8 +494,12 @@ export default function GateRegister() {
                   <input type="text" value={formData.driverLicenceNo} onChange={e => setFormData({...formData, driverLicenceNo: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Contact No</label>
+                  <label className="block text-sm font-medium mb-1">Contact No. / Sign.</label>
                   <input type="text" value={formData.contactNoSign} onChange={e => setFormData({...formData, contactNoSign: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Security Sign.</label>
+                  <input type="text" value={formData.securitySign} onChange={e => setFormData({...formData, securitySign: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-6">

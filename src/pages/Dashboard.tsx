@@ -4,6 +4,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Package, MapPin, Users, AlertTriangle, ArrowRightLeft } from 'lucide-react';
 
 export default function Dashboard() {
+  const [selectedUnit, setSelectedUnit] = React.useState<string>('All');
+
   const { items, stock, materialIssues, warehouses, suppliers } = useApp();
 
   const totalItems = items.length;
@@ -25,7 +27,15 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <select value={selectedUnit} onChange={e => setSelectedUnit(e.target.value)} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 px-4 py-2 rounded-lg">
+          <option value="All">All Units</option>
+          {Array.from(new Set([...warehouses.map(w => w.name), 'Yashoda', 'AIPL'])).map(u => (
+            <option key={u} value={u}>{u}</option>
+          ))}
+        </select>
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Total Items (Master)" value={totalItems} icon={Package} color="bg-blue-500" />
