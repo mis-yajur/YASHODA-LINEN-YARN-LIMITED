@@ -1,7 +1,8 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Package, MapPin, Users, AlertTriangle, ArrowRightLeft } from 'lucide-react';
+import { Package, MapPin, Users, AlertTriangle, ArrowRightLeft, LayoutDashboard, Database, ShoppingCart, CheckSquare, FileText, Bell } from 'lucide-react';
 
 export default function Dashboard() {
   const [selectedUnit, setSelectedUnit] = React.useState<string>('All');
@@ -37,6 +38,21 @@ export default function Dashboard() {
         </select>
       </div>
       
+      
+      <div className="pt-4">
+        <h2 className="text-xl font-bold mb-4">Modules</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <MenuCard title="Dashboard" icon={LayoutDashboard} path="/" color="bg-indigo-500" />
+          <MenuCard title="Masters" icon={Database} path="/masters" color="bg-blue-500" />
+          <MenuCard title="Gate Entry" icon={MapPin} path="/gate" color="bg-emerald-500" />
+          <MenuCard title="Procurement" icon={ShoppingCart} path="/procurement" color="bg-amber-500" />
+          <MenuCard title="Inventory" icon={Package} path="/inventory" color="bg-orange-500" />
+          <MenuCard title="Material Issue" icon={ArrowRightLeft} path="/issue" color="bg-pink-500" />
+          <MenuCard title="Approvals" icon={CheckSquare} path="/approvals" color="bg-purple-500" />
+          <MenuCard title="Reports & Notifications" icon={FileText} path="/reports" color="bg-rose-500" />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Total Items (Master)" value={totalItems} icon={Package} color="bg-blue-500" />
         <StatCard title="Total Stock Qty" value={totalStockValue} icon={MapPin} color="bg-emerald-500" />
@@ -105,5 +121,16 @@ function StatCard({ title, value, icon: Icon, color }: { title: string, value: n
         <p className="text-2xl font-bold">{value}</p>
       </div>
     </div>
+  );
+}
+
+function MenuCard({ title, icon: Icon, path, color }: { title: string, icon: any, path: string, color: string }) {
+  return (
+    <Link to={path} className="bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 flex flex-col items-center justify-center gap-4 hover:shadow-md transition-shadow hover:border-indigo-100 dark:hover:border-indigo-900 group">
+      <div className={`p-4 rounded-xl text-white ${color} group-hover:scale-110 transition-transform`}>
+        <Icon className="w-8 h-8" />
+      </div>
+      <p className="font-bold text-gray-800 dark:text-gray-100 text-center">{title}</p>
+    </Link>
   );
 }
