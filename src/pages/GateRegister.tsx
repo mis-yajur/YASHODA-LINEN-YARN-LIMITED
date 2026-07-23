@@ -37,9 +37,9 @@ export default function GateRegister() {
         contactNoSign: row.contactNoSign || row['Contact No./Sign.'] || '',
         securitySign: row.securitySign || row['Security Sign.'] || ''
       };
-      await addGateEntry(entry);
+      await addGateEntry(entry, companyType);
     }
-    alert('Bulk upload completed');
+    alert(`Bulk upload completed for ${companyType === 'Yashoda' ? 'Yashoda' : 'Contractor AIPL'}`);
   };
   const [sheetEntries, setSheetEntries] = useState<Omit<GateEntry, 'id'>[]>([]);
   
@@ -208,7 +208,7 @@ export default function GateRegister() {
     e.preventDefault();
     try {
       if (editId) {
-        await updateGateEntry(editId, { ...formData });
+        await updateGateEntry(editId, { ...formData }, companyType);
       } else {
         const slNo = (allEntries.length + 1).toString();
         await addGateEntry({ ...formData, slNo }, companyType);
@@ -295,16 +295,22 @@ export default function GateRegister() {
       </div>
       <div className="flex border-b border-gray-200 dark:border-zinc-800">
         <button
-          onClick={() => { setCompanyType('Yashoda');  }}
-          className={`flex-1 sm:flex-none text-center px-6 py-3 font-medium text-sm transition-colors border-b-2 ${companyType === 'Yashoda' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+          onClick={() => { setCompanyType('Yashoda'); setCurrentPage(1); }}
+          className={`flex-1 sm:flex-none text-center px-6 py-3 font-bold text-sm transition-colors border-b-2 flex items-center justify-center gap-2 ${companyType === 'Yashoda' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
         >
-          Yashoda
+          <span>Yashoda Store Table</span>
+          <span className="px-2 py-0.5 rounded-full text-xs font-extrabold bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300">
+            {gateEntriesYashoda.length}
+          </span>
         </button>
         <button
-          onClick={() => { setCompanyType('AIPL');  }}
-          className={`flex-1 sm:flex-none text-center px-6 py-3 font-medium text-sm transition-colors border-b-2 ${companyType === 'AIPL' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+          onClick={() => { setCompanyType('AIPL'); setCurrentPage(1); }}
+          className={`flex-1 sm:flex-none text-center px-6 py-3 font-bold text-sm transition-colors border-b-2 flex items-center justify-center gap-2 ${companyType === 'AIPL' ? 'border-amber-600 text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/20' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
         >
-          Contractor AIPL
+          <span>Contractor AIPL Store Table</span>
+          <span className="px-2 py-0.5 rounded-full text-xs font-extrabold bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
+            {gateEntriesAIPL.length}
+          </span>
         </button>
       </div>
 
