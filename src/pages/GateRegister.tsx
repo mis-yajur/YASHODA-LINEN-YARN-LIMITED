@@ -1,12 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Search, Filter, Download, Plus, MapPin, X } from 'lucide-react';
+import { Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn } from 'lucide-react';
 import { initialGateEntries } from '../data/initialData';
+import { initAuth, googleSignIn, User } from '../lib/auth';
+import { getOrCreateSpreadsheet, appendRow, getSpreadsheetLink } from '../lib/sheets';
 
 export default function GateRegister() {
   const { gateEntries, addGateEntry } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Auth State
+  const [needsAuth, setNeedsAuth] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [sheetUrl, setSheetUrl] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  useEffect(() => {
+    setSheetUrl(getSpreadsheetLink());
+    const unsubscribe = initAuth(
+      (user, token) => {
+        setUser(user);
+        setNeedsAuth(false);
+      },
+      () => setNeedsAuth(true)
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogin = async () => {
+    setIsLoggingIn(true);
+    try {
+      const result = await googleSignIn();
+      if (result) {
+        setUser(result.user);
+        setNeedsAuth(false);
+        const spreadsheetId = await getOrCreateSpreadsheet();
+        setSheetUrl(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`);
+      }
+    } catch (err) {
+      console.error('Login failed:', err);
+      alert('Failed to sign in. Please try again.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
   
   // Form State
   const [formData, setFormData] = useState({
@@ -57,24 +96,62 @@ export default function GateRegister() {
     document.body.removeChild(link);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const slNo = (allEntries.length + 1).toString();
-    addGateEntry({ ...formData, slNo });
-    setIsModalOpen(false);
-    setFormData({
-      date: new Date().toISOString().split('T')[0],
-      vehicleNo: '',
-      partyName: '',
-      materialDescription: '',
-      quantityWeight: '',
-      inTime: '',
-      outTime: '',
-      invoiceNoValue: '',
-      driverLicenceNo: '',
-      contactNoSign: '',
-      securitySign: ''
-    });
+    if (needsAuth) {
+      alert("Please sign in to Google to sync gate entries.");
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const spreadsheetId = await getOrCreateSpreadsheet();
+      if (!sheetUrl) {
+        setSheetUrl(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`);
+      }
+
+      const slNo = (allEntries.length + 1).toString();
+      
+      // Save locally
+      addGateEntry({ ...formData, slNo });
+      
+      // Sync to sheets
+      await appendRow(spreadsheetId, [
+        slNo,
+        formData.date,
+        formData.vehicleNo,
+        formData.partyName,
+        formData.materialDescription,
+        formData.quantityWeight,
+        formData.inTime,
+        formData.outTime,
+        formData.invoiceNoValue,
+        formData.driverLicenceNo,
+        formData.contactNoSign
+      ]);
+
+      setIsModalOpen(false);
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        vehicleNo: '',
+        partyName: '',
+        materialDescription: '',
+        quantityWeight: '',
+        inTime: '',
+        outTime: '',
+        invoiceNoValue: '',
+        driverLicenceNo: '',
+        contactNoSign: '',
+        securitySign: ''
+      });
+    } catch (err) {
+      console.error('Failed to sync to Google Sheets', err);
+      alert('Failed to sync to Google Sheets. Data was saved locally.');
+      // Still close modal if local save was successful
+      setIsModalOpen(false);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   return (
@@ -83,7 +160,27 @@ export default function GateRegister() {
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <MapPin className="w-6 h-6 text-indigo-600" /> Gate Entry Register
         </h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {needsAuth ? (
+            <button 
+              onClick={handleLogin} 
+              disabled={isLoggingIn}
+              className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium"
+            >
+              <LogIn className="w-4 h-4" /> {isLoggingIn ? 'Connecting...' : 'Connect Sheets'}
+            </button>
+          ) : (
+            sheetUrl && (
+              <a 
+                href={sheetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 border border-green-200 dark:border-green-800 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors text-sm font-medium"
+              >
+                <ExternalLink className="w-4 h-4" /> View Google Sheet
+              </a>
+            )
+          )}
           <button onClick={handleExport} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium">
             <Download className="w-4 h-4" /> Export CSV
           </button>
@@ -236,7 +333,9 @@ export default function GateRegister() {
               </div>
               <div className="flex justify-end gap-2 mt-6">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded text-gray-600 dark:text-gray-300">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Save Entry</button>
+                <button type="submit" disabled={isSyncing} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50">
+                  {isSyncing ? 'Syncing to Sheets...' : 'Save Entry'}
+                </button>
               </div>
             </form>
           </div>
