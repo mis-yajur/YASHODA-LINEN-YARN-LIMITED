@@ -57,6 +57,7 @@ export interface MaterialIssueItem {
 }
 
 export interface GateEntry {
+  companyType?: 'AIPL' | 'Yashoda';
   id: string;
   slNo: string;
   date: string;

@@ -8,6 +8,7 @@ import { getOrCreateSpreadsheet, appendRow, getSpreadsheetLink, fetchRows } from
 export default function GateRegister() {
   const { gateEntries, addGateEntry } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
+  const [companyType, setCompanyType] = useState<'AIPL' | 'Yashoda'>('Yashoda');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sheetEntries, setSheetEntries] = useState<Omit<GateEntry, 'id'>[]>([]);
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
@@ -19,12 +20,12 @@ export default function GateRegister() {
   const [sheetUrl, setSheetUrl] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const loadSheetData = async () => {
+  const loadSheetData = async (type: 'AIPL' | 'Yashoda' = companyType) => {
     setIsLoadingSheet(true);
     try {
       const spreadsheetId = await getOrCreateSpreadsheet();
       setSheetUrl(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`);
-      const rows = await fetchRows(spreadsheetId, 'GateEntries');
+      const rows = await fetchRows(spreadsheetId, 'GateEntries_' + type);
       if (rows && rows.length > 1) { // Skip header row
         const mappedEntries = rows.slice(1).map(row => ({
           slNo: row[0] || '',
@@ -55,7 +56,7 @@ export default function GateRegister() {
       (user, token) => {
         setUser(user);
         setNeedsAuth(false);
-        loadSheetData();
+        loadSheetData(companyType);
       },
       () => setNeedsAuth(true)
     );
@@ -69,7 +70,7 @@ export default function GateRegister() {
       if (result) {
         setUser(result.user);
         setNeedsAuth(false);
-        await loadSheetData();
+        await loadSheetData(companyType);
       }
     } catch (err) {
       console.error('Login failed:', err);
@@ -94,7 +95,7 @@ export default function GateRegister() {
     securitySign: ''
   });
 
-  const allEntries = [...sheetEntries, ...gateEntries.filter(g => !sheetEntries.some(s => s.slNo === g.slNo))].reverse();
+  const allEntries = [...sheetEntries, ...gateEntries.filter(g => (g.companyType === companyType || (!g.companyType && companyType === 'Yashoda')) && !sheetEntries.some(s => s.slNo === g.slNo))].reverse();
 
   const filteredEntries = allEntries.filter(entry => 
     entry.partyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -145,7 +146,8 @@ export default function GateRegister() {
       const slNo = (allEntries.length + 1).toString();
       
       // Save locally and sync (AppContext handles sync to sheets now)
-      await addGateEntry({ ...formData, slNo });
+      await addGateEntry({ ...formData, slNo, companyType });
+      await loadSheetData(companyType);
 
       setIsModalOpen(false);
       setFormData({
@@ -205,6 +207,20 @@ export default function GateRegister() {
             <Plus className="w-4 h-4" /> New Entry
           </button>
         </div>
+      </div>
+      <div className="flex border-b border-gray-200 dark:border-zinc-800">
+        <button
+          onClick={() => { setCompanyType('Yashoda'); loadSheetData('Yashoda'); }}
+          className={`flex-1 sm:flex-none text-center px-6 py-3 font-medium text-sm transition-colors border-b-2 ${companyType === 'Yashoda' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+        >
+          Yashoda
+        </button>
+        <button
+          onClick={() => { setCompanyType('AIPL'); loadSheetData('AIPL'); }}
+          className={`flex-1 sm:flex-none text-center px-6 py-3 font-medium text-sm transition-colors border-b-2 ${companyType === 'AIPL' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+        >
+          Contractor AIPL
+        </button>
       </div>
 
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">

@@ -115,7 +115,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           'departments': 'Departments',
           'warehouses': 'Warehouses',
           'suppliers': 'Suppliers',
-          'gate_entries': 'GateEntries',
+          'gate_entries_aipl': 'GateEntries_AIPL',
+          'gate_entries_yashoda': 'GateEntries_Yashoda',
           'material_issues': 'MaterialIssues',
           'material_issue_items': 'MaterialIssues', // Just putting items in MaterialIssues tab for now
           'prs': 'PRs',
@@ -220,7 +221,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addGateEntry = async (entryData: Omit<GateEntry, 'id'>) => {
     const entry: GateEntry = { ...entryData, id: crypto.randomUUID() };
     setState(s => ({ ...s, gateEntries: [...s.gateEntries, entry] }));
-    await syncToSheets('append', 'gate_entries', entry);
+    const sheetName = entry.companyType === 'AIPL' ? 'gate_entries_aipl' : 'gate_entries_yashoda';
+    await syncToSheets('append', sheetName, entry);
   };
 
   const issueMaterial = async (issueData: Omit<MaterialIssue, 'id'>, itemsData: Omit<MaterialIssueItem, 'id' | 'issueId'>[]) => {
