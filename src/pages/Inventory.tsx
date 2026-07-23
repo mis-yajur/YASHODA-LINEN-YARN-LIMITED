@@ -4,7 +4,7 @@ import { Item } from '../types';
 import { Plus, Search, Edit2, Trash2, X, Package, ArrowRightLeft, Settings2 } from 'lucide-react';
 
 export default function Inventory() {
-  const { items, addItem, stock, warehouses } = useApp();
+  const { items, addItem, stock, warehouses, stockTransfers, stockAdjustments, addStockTransfer, addStockAdjustment } = useApp();
   const [activeTab, setActiveTab] = useState<'items' | 'stock' | 'transfers' | 'adjustments'>('stock');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -179,9 +179,28 @@ export default function Inventory() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td colSpan={5} className="p-8 text-center text-gray-500">No stock transfers found.</td>
-              </tr>
+              {stockTransfers?.map(transfer => (
+                <tr key={transfer.id} className="border-b border-gray-100 dark:border-zinc-800 last:border-0">
+                  <td className="p-4">{transfer.id.slice(0, 8).toUpperCase()}</td>
+                  <td className="p-4">{warehouses.find(w => w.id === transfer.fromWarehouseId)?.name || transfer.fromWarehouseId}</td>
+                  <td className="p-4">{warehouses.find(w => w.id === transfer.toWarehouseId)?.name || transfer.toWarehouseId}</td>
+                  <td className="p-4">{new Date(transfer.date).toLocaleDateString()}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      transfer.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                      transfer.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                      'bg-amber-100 text-amber-800'
+                    }`}>
+                      {transfer.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {(!stockTransfers || stockTransfers.length === 0) && (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-gray-500">No stock transfers found.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -209,9 +228,28 @@ export default function Inventory() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td colSpan={5} className="p-8 text-center text-gray-500">No stock adjustments found.</td>
-              </tr>
+              {stockAdjustments?.map(adj => (
+                <tr key={adj.id} className="border-b border-gray-100 dark:border-zinc-800 last:border-0">
+                  <td className="p-4">{adj.id.slice(0, 8).toUpperCase()}</td>
+                  <td className="p-4">{warehouses.find(w => w.id === adj.warehouseId)?.name || adj.warehouseId}</td>
+                  <td className="p-4">{adj.reason}</td>
+                  <td className="p-4">{new Date(adj.date).toLocaleDateString()}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      adj.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                      adj.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                      'bg-amber-100 text-amber-800'
+                    }`}>
+                      {adj.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {(!stockAdjustments || stockAdjustments.length === 0) && (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-gray-500">No stock adjustments found.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -224,8 +262,24 @@ export default function Inventory() {
           onSave={(data) => {
             if (modalType === 'item') {
               addItem(data);
-            } else {
-              alert('Saved successfully!');
+            } else if (modalType === 'transfer') {
+              addStockTransfer({
+                fromWarehouseId: data.fromWarehouse,
+                toWarehouseId: data.toWarehouse,
+                itemId: data.itemId,
+                quantity: data.quantity,
+                date: new Date().toISOString(),
+                status: 'Pending'
+              });
+            } else if (modalType === 'adjustment') {
+              addStockAdjustment({
+                warehouseId: data.warehouseId,
+                itemId: data.itemId,
+                quantity: data.quantity,
+                reason: data.reason,
+                date: new Date().toISOString(),
+                status: 'Pending'
+              });
             }
             setIsModalOpen(false);
           }} 

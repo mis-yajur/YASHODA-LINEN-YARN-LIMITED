@@ -98,6 +98,26 @@ export interface GRN {
   status: 'Received' | 'Inspected' | 'Rejected';
 }
 
+export interface StockTransfer {
+  id: string;
+  fromWarehouseId: string;
+  toWarehouseId: string;
+  itemId: string;
+  quantity: number;
+  date: string;
+  status: 'Pending' | 'Completed' | 'Rejected';
+}
+
+export interface StockAdjustment {
+  id: string;
+  warehouseId: string;
+  itemId: string;
+  quantity: number;
+  reason: string;
+  date: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+}
+
 export interface AppState {
   departments: Department[];
   suppliers: Supplier[];
@@ -110,5 +130,7 @@ export interface AppState {
   prs: PurchaseRequisition[];
   pos: PurchaseOrder[];
   grns: GRN[];
+  stockTransfers: StockTransfer[];
+  stockAdjustments: StockAdjustment[];
   isSyncing: boolean;
 }

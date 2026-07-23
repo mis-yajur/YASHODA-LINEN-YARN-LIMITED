@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AppState, Item, Department, Warehouse, Stock, MaterialIssue, Supplier, MaterialIssueItem, GateEntry, PurchaseRequisition, PurchaseOrder, GRN } from '../types';
+import { AppState, Item, Department, Warehouse, Stock, MaterialIssue, Supplier, MaterialIssueItem, GateEntry, PurchaseRequisition, PurchaseOrder, GRN, StockTransfer, StockAdjustment } from '../types';
 
 interface AppContextType extends AppState {
   setScriptUrl: (url: string) => void;
@@ -12,6 +12,8 @@ interface AppContextType extends AppState {
   addPR: (pr: Omit<PurchaseRequisition, 'id'>) => Promise<void>;
   addPO: (po: Omit<PurchaseOrder, 'id'>) => Promise<void>;
   addGRN: (grn: Omit<GRN, 'id'>) => Promise<void>;
+  addStockTransfer: (transfer: Omit<StockTransfer, 'id'>) => Promise<void>;
+  addStockAdjustment: (adjustment: Omit<StockAdjustment, 'id'>) => Promise<void>;
   issueMaterial: (issue: Omit<MaterialIssue, 'id'>, items: Omit<MaterialIssueItem, 'id' | 'issueId'>[]) => Promise<void>;
   receiveStock: (itemId: string, warehouseId: string, quantity: number, batchNo?: string) => Promise<void>;
 }
@@ -33,6 +35,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     prs: [],
     pos: [],
     grns: [],
+    stockTransfers: [],
+    stockAdjustments: [],
     isSyncing: false
   });
 
@@ -51,7 +55,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       gateEntries: state.gateEntries,
       prs: state.prs,
       pos: state.pos,
-      grns: state.grns
+      grns: state.grns,
+      stockTransfers: state.stockTransfers,
+      stockAdjustments: state.stockAdjustments
     }));
   }, [state, initialized]);
 
@@ -77,7 +83,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         'suppliers': 'Suppliers',
         'gate_entries': 'GateEntries',
         'material_issues': 'MaterialIssues',
-        'material_issue_items': 'MaterialIssues' // Just putting items in MaterialIssues tab for now
+        'material_issue_items': 'MaterialIssues', // Just putting items in MaterialIssues tab for now
+        'prs': 'PRs',
+        'pos': 'POs',
+        'grns': 'GRNs',
+        'stock_transfers': 'StockTransfers',
+        'stock_adjustments': 'StockAdjustments'
       };
 
       const mappedSheetName = sheetNameMapping[sheetName] || sheetName;
@@ -205,8 +216,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     await syncToSheets('append', 'grns', grn);
   };
 
+  const addStockTransfer = async (transferData: Omit<StockTransfer, 'id'>) => {
+    const transfer: StockTransfer = { ...transferData, id: crypto.randomUUID() };
+    setState(s => ({ ...s, stockTransfers: [...(s.stockTransfers || []), transfer] }));
+    await syncToSheets('append', 'stock_transfers', transfer);
+  };
+
+  const addStockAdjustment = async (adjustmentData: Omit<StockAdjustment, 'id'>) => {
+    const adjustment: StockAdjustment = { ...adjustmentData, id: crypto.randomUUID() };
+    setState(s => ({ ...s, stockAdjustments: [...(s.stockAdjustments || []), adjustment] }));
+    await syncToSheets('append', 'stock_adjustments', adjustment);
+  };
+
   return (
-    <AppContext.Provider value={{ ...state, setScriptUrl, initApp, addItem, addDepartment, addWarehouse, addSupplier, addGateEntry, addPR, addPO, addGRN, issueMaterial, receiveStock }}>
+    <AppContext.Provider value={{ ...state, setScriptUrl, initApp, addItem, addDepartment, addWarehouse, addSupplier, addGateEntry, addPR, addPO, addGRN, addStockTransfer, addStockAdjustment, issueMaterial, receiveStock }}>
       {children}
     </AppContext.Provider>
   );

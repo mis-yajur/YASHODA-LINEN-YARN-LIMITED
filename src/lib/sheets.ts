@@ -27,7 +27,12 @@ export const getOrCreateSpreadsheet = async (): Promise<string> => {
         { properties: { title: 'Warehouses' } },
         { properties: { title: 'Suppliers' } },
         { properties: { title: 'Stock' } },
-        { properties: { title: 'MaterialIssues' } }
+        { properties: { title: 'MaterialIssues' } },
+        { properties: { title: 'PRs' } },
+        { properties: { title: 'POs' } },
+        { properties: { title: 'GRNs' } },
+        { properties: { title: 'StockTransfers' } },
+        { properties: { title: 'StockAdjustments' } }
       ]
     })
   });
