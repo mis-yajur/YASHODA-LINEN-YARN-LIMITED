@@ -19,15 +19,23 @@ export default function GateRegister() {
         date: row.date || new Date().toISOString().split('T')[0],
         vehicleNo: row.vehicleNo || '',
         partyName: row.partyName || '',
-        materialDescription: row.materialDescription || '',
-        quantityWeight: row.quantityWeight || '',
-        unit: row.unit || 'Kgs',
-        invoiceNoValue: row.invoiceNoValue || '',
-        inTime: row.inTime || '',
-        outTime: row.outTime || '',
-        driverLicenceNo: row.driverLicenceNo || '',
-        contactNoSign: row.contactNoSign || '',
-        securitySign: ''
+        gstNo: row.gstNo || row['GST No.'] || '',
+        materialDescription: row.materialDescription || row['Material Description'] || '',
+        quantityWeight: row.quantityWeight || row['Quantity'] || '',
+        unit: row.unit || row['UOM'] || 'Kgs',
+        rateUom: row.rateUom || row['RATE/UOM'] || '',
+        basePrice: row.basePrice || row['Base Price'] || '',
+        sgst: row.sgst || row['SGST'] || '',
+        cgst: row.cgst || row['CGST'] || '',
+        igst: row.igst || row['IGST'] || '',
+        totalPrice: row.totalPrice || row['Total Price'] || '',
+        ewayBill: row.ewayBill || row['e-Way Bill'] || '',
+        invoiceNoValue: row.invoiceNoValue || row['Invoice No./Value'] || '',
+        inTime: row.inTime || row['In Time'] || '',
+        outTime: row.outTime || row['Out Time'] || '',
+        driverLicenceNo: row.driverLicenceNo || row['Driver Licence No.'] || '',
+        contactNoSign: row.contactNoSign || row['Contact No./Sign.'] || '',
+        securitySign: row.securitySign || row['Security Sign.'] || ''
       };
       await addGateEntry(entry);
     }
@@ -51,15 +59,23 @@ export default function GateRegister() {
     date: new Date().toISOString().split('T')[0],
     vehicleNo: '',
     partyName: '',
+    gstNo: '',
     materialDescription: '',
-        quantityWeight: '',
+    quantityWeight: '',
     unit: 'Kgs',
+    rateUom: '',
+    basePrice: '',
+    sgst: '',
+    cgst: '',
+    igst: '',
+    totalPrice: '',
+    ewayBill: '',
     inTime: '',
     outTime: '',
     invoiceNoValue: '',
     driverLicenceNo: '',
     contactNoSign: '',
-        securitySign: ''
+    securitySign: ''
   });
 
   const allEntries = gateEntries.filter(g => (g.companyType === companyType || (!g.companyType && companyType === 'Yashoda'))).reverse();
@@ -168,10 +184,18 @@ export default function GateRegister() {
         date: new Date().toISOString().split('T')[0],
         vehicleNo: '',
         partyName: '',
+        gstNo: '',
         materialDescription: '',
-            quantityWeight: '',
-    unit: 'Kgs',
-    inTime: '',
+        quantityWeight: '',
+        unit: 'Kgs',
+        rateUom: '',
+        basePrice: '',
+        sgst: '',
+        cgst: '',
+        igst: '',
+        totalPrice: '',
+        ewayBill: '',
+        inTime: '',
         outTime: '',
         invoiceNoValue: '',
         driverLicenceNo: '',
@@ -263,6 +287,7 @@ export default function GateRegister() {
         </div>
 
         <div className="overflow-x-auto">
+          <div className="overflow-x-auto">
           <table className="w-full text-left whitespace-nowrap">
             <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm font-medium text-gray-500 dark:text-gray-400">
               <tr>
@@ -270,12 +295,24 @@ export default function GateRegister() {
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Vehicle No.</th>
                 <th className="px-4 py-3">Party Name</th>
+                {companyType === 'AIPL' && <th className="px-4 py-3">GST No.</th>}
                 <th className="px-4 py-3">Material Description</th>
                 <th className="px-4 py-3">Quantity & Weight</th>
                 <th className="px-4 py-3">Unit</th>
+                {companyType === 'AIPL' && (
+                  <>
+                    <th className="px-4 py-3">RATE/UOM</th>
+                    <th className="px-4 py-3">Base Price</th>
+                    <th className="px-4 py-3">SGST</th>
+                    <th className="px-4 py-3">CGST</th>
+                    <th className="px-4 py-3">IGST</th>
+                    <th className="px-4 py-3">Total Price</th>
+                    <th className="px-4 py-3">e-Way Bill</th>
+                  </>
+                )}
+                <th className="px-4 py-3">Invoice No./Value</th>
                 <th className="px-4 py-3">In Time</th>
                 <th className="px-4 py-3">Out Time</th>
-                <th className="px-4 py-3">Invoice No./Value</th>
                 <th className="px-4 py-3">Driver Licence No.</th>
                 <th className="px-4 py-3">Contact No.</th>
               </tr>
@@ -287,25 +324,38 @@ export default function GateRegister() {
                   <td className="px-4 py-3">{entry.date}</td>
                   <td className="px-4 py-3">{entry.vehicleNo || '-'}</td>
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{entry.partyName}</td>
-                  <td className="px-4 py-3 truncate max-w-xs" title={entry.materialDescription}>{entry.materialDescription}</td>
+                  {companyType === 'AIPL' && <td className="px-4 py-3">{entry.gstNo || '-'}</td>}
+                  <td className="px-4 py-3 truncate max-w-[200px]" title={entry.materialDescription}>{entry.materialDescription}</td>
                   <td className="px-4 py-3">{entry.quantityWeight}</td>
                   <td className="px-4 py-3">{entry.unit}</td>
-                  <td className="px-4 py-3 text-indigo-600 dark:text-indigo-400">{entry.inTime}</td>
-                  <td className="px-4 py-3 text-emerald-600 dark:text-emerald-400">{entry.outTime}</td>
-                  <td className="px-4 py-3">{entry.invoiceNoValue}</td>
+                  {companyType === 'AIPL' && (
+                    <>
+                      <td className="px-4 py-3">{entry.rateUom || '-'}</td>
+                      <td className="px-4 py-3">{entry.basePrice || '-'}</td>
+                      <td className="px-4 py-3">{entry.sgst || '-'}</td>
+                      <td className="px-4 py-3">{entry.cgst || '-'}</td>
+                      <td className="px-4 py-3">{entry.igst || '-'}</td>
+                      <td className="px-4 py-3">{entry.totalPrice || '-'}</td>
+                      <td className="px-4 py-3">{entry.ewayBill || '-'}</td>
+                    </>
+                  )}
+                  <td className="px-4 py-3">{entry.invoiceNoValue || '-'}</td>
+                  <td className="px-4 py-3">{entry.inTime || '-'}</td>
+                  <td className="px-4 py-3">{entry.outTime || '-'}</td>
                   <td className="px-4 py-3">{entry.driverLicenceNo || '-'}</td>
                   <td className="px-4 py-3">{entry.contactNoSign || '-'}</td>
                 </tr>
               ))}
               {currentEntries.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
-                    No entries found matching your search.
+                  <td colSpan={companyType === 'AIPL' ? 20 : 12} className="px-4 py-8 text-center text-gray-500">
+                    No entries found
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
         </div>
         
         {totalPages > 1 && (

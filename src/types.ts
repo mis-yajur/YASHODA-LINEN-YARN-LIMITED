@@ -63,9 +63,17 @@ export interface GateEntry {
   date: string;
   vehicleNo: string;
   partyName: string;
+  gstNo?: string;
   materialDescription: string;
   quantityWeight: string;
   unit: string;
+  rateUom?: string;
+  basePrice?: string;
+  sgst?: string;
+  cgst?: string;
+  igst?: string;
+  totalPrice?: string;
+  ewayBill?: string;
   invoiceNoValue: string;
   inTime: string;
   outTime: string;
