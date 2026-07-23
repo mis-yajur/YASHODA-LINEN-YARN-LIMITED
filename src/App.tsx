@@ -55,21 +55,21 @@ function Layout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 shadow-sm">
         <div className="w-full mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center shrink-0 pr-4">
+            <div className="flex items-center shrink-0 mr-4">
               <Link to="/" className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-xl">
                 <Database className="w-8 h-8 shrink-0" />
-                <span className="hidden md:block truncate">YASHODA LINEN YARN</span>
-                <span className="md:hidden truncate">ERP</span>
+                <span className="hidden md:block whitespace-nowrap">YASHODA LINEN YARN</span>
+                <span className="md:hidden whitespace-nowrap">ERP</span>
               </Link>
             </div>
             
             {/* Desktop Navigation */}
-            <nav className="hidden lg:flex flex-1 justify-center space-x-1 overflow-x-auto px-2">
+            <nav className="hidden lg:flex flex-1 items-center space-x-1 overflow-x-auto px-2 scrollbar-hide">
               {navItems.map((item) => (
                 <Link
                   key={item.name}
                   to={item.path}
-                  className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors whitespace-nowrap"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors whitespace-nowrap"
                 >
                   <item.icon className="w-4 h-4 shrink-0" />
                   <span className="hidden xl:inline">{item.name}</span>
