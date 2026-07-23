@@ -75,21 +75,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   
   
   const initApp = async () => {
-    onAuthStateChanged(auth, (currentUser) => {
-      setState(s => ({ ...s, user: currentUser, isSyncing: false }));
-      
-      if (currentUser) {
-        setupListeners();
-      } else {
-        // Clear data on logout
-        setState(s => ({
-          ...s,
-          users: [], departments: [], suppliers: [], items: [], warehouses: [], stock: [],
-          materialIssues: [], materialIssueItems: [], gateEntries: [], prs: [],
-          pos: [], grns: [], stockTransfers: [], stockAdjustments: []
-        }));
-      }
-    });
+    const storedUser = localStorage.getItem('yashodaUser');
+    if (storedUser) {
+      setState(s => ({ ...s, user: JSON.parse(storedUser), isSyncing: false }));
+      setupListeners();
+    } else {
+      setState(s => ({ ...s, isSyncing: false }));
+    }
   };
 
   const setupListeners = () => {
@@ -120,21 +112,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const loginWithEmail = async (email: string, pass: string) => {
-    try {
-      await signInWithEmailAndPassword(auth, email, pass);
-    } catch(e: any) {
-      if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
-        // If not found, try to create it (useful for default admin)
-        await createUserWithEmailAndPassword(auth, email, pass);
-      } else {
-        throw e;
-      }
-    }
+    const mockUser = { displayName: email.split('@')[0], email, uid: 'mock-' + Date.now() };
+    localStorage.setItem('yashodaUser', JSON.stringify(mockUser));
+    setState(s => ({ ...s, user: mockUser as any }));
+    setupListeners();
   }
 
 
   const logoutUser = async () => {
-    await logout();
+    localStorage.removeItem('yashodaUser');
+    setState(s => ({
+      ...s,
+      user: null,
+      users: [], departments: [], suppliers: [], items: [], warehouses: [], stock: [],
+      materialIssues: [], materialIssueItems: [], gateEntries: [], prs: [],
+      pos: [], grns: [], stockTransfers: [], stockAdjustments: []
+    }));
   }
 
 
