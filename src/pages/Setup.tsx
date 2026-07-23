@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Code, Check, Copy, Link as LinkIcon, Database } from 'lucide-react';
+import { Code, Check, Copy, Link as LinkIcon, Database, Activity, RefreshCw } from 'lucide-react';
 
 const SCRIPT_CONTENT = `function setupSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -109,6 +109,47 @@ export default function Setup() {
   const [urlInput, setUrlInput] = useState(scriptUrl || '');
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [diagnosticLogs, setDiagnosticLogs] = useState<{ timestamp: number, message: string, type: 'info' | 'success' | 'error' }[]>([]);
+
+  const addLog = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
+    setDiagnosticLogs(prev => [...prev, { timestamp: Date.now(), message, type }]);
+  };
+
+  const runDiagnostics = async () => {
+    if (!scriptUrl) return;
+    setIsTesting(true);
+    setDiagnosticLogs([]);
+    addLog(`Starting diagnostics for ${scriptUrl}...`, 'info');
+
+    try {
+      addLog('Step 1: Attempting to connect to Google Sheets API...');
+      const response = await fetch(`${scriptUrl}?action=getAll`, {
+        method: 'GET',
+      });
+      
+      addLog(`Received response with status: ${response.status}`, response.ok ? 'success' : 'error');
+      
+      if (!response.ok) {
+        addLog(`HTTP Error ${response.status}: This might be a CORS issue or the deployment is not set to "Anyone". Ensure "Who has access" is "Anyone".`, 'error');
+      } else {
+        const text = await response.text();
+        addLog(`Response payload size: ${text.length} bytes. Parsing JSON...`);
+        try {
+          const data = JSON.parse(text);
+          addLog(`Success! Retrieved ${Object.keys(data).length} tables from the database.`, 'success');
+        } catch (e) {
+          addLog(`Failed to parse JSON. The endpoint might be returning HTML (e.g. Google Login page). Ensure "Execute as" is "Me" and "Who has access" is "Anyone".`, 'error');
+        }
+      }
+    } catch (e: any) {
+      addLog(`Network Error: ${e.message}`, 'error');
+      addLog('Hint: This is typically caused by CORS restrictions (missing/invalid Google Apps Script deployment) or a completely invalid URL.', 'error');
+    } finally {
+      setIsTesting(false);
+      addLog('Diagnostics complete.', 'info');
+    }
+  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(SCRIPT_CONTENT);
@@ -197,6 +238,35 @@ export default function Setup() {
               </p>
             )}
           </div>
+        </div>
+      </div>
+      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-6 space-y-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Activity className="w-5 h-5 text-indigo-600" /> API Diagnostics
+          </h2>
+        </div>
+        
+        <div className="space-y-4">
+          <button
+            onClick={runDiagnostics}
+            disabled={!scriptUrl || isTesting}
+            className="w-full bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-800 dark:text-gray-200 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+          >
+            {isTesting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Activity className="w-5 h-5" />}
+            {isTesting ? 'Running Diagnostics...' : 'Run Connection Test'}
+          </button>
+
+          {diagnosticLogs.length > 0 && (
+            <div className="bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-x-auto max-h-64 overflow-y-auto">
+              {diagnosticLogs.map((log, idx) => (
+                <div key={idx} className={`mb-1 ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-green-400' : 'text-gray-300'}`}>
+                  <span className="text-gray-500 mr-2">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                  {log.message}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
