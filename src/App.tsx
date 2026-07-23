@@ -22,6 +22,7 @@ import Approvals from './pages/Approvals';
 import Reports from './pages/Reports';
 import Notifications from './pages/Notifications';
 import Setup from './pages/Setup';
+import GateRegister from './pages/GateRegister';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { initApp, isSyncing, scriptUrl } = useApp();
@@ -40,6 +41,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Masters', path: '/masters', icon: Database },
+    { name: 'Gate Entry', path: '/gate', icon: MapPin },
     { name: 'Procurement', path: '/procurement', icon: ShoppingCart },
     { name: 'Inventory', path: '/inventory', icon: Package },
     { name: 'Material Issue', path: '/issue', icon: ArrowRightLeft },
@@ -129,6 +131,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/masters" element={<Masters />} />
+            <Route path="/gate" element={<GateRegister />} />
             <Route path="/procurement" element={<Procurement />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/issue" element={<MaterialIssue />} />

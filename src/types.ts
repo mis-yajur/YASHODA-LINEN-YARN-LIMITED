@@ -56,6 +56,22 @@ export interface MaterialIssueItem {
   quantity: number;
 }
 
+export interface GateEntry {
+  id: string;
+  slNo: string;
+  date: string;
+  vehicleNo: string;
+  partyName: string;
+  materialDescription: string;
+  quantityWeight: string;
+  invoiceNoValue: string;
+  inTime: string;
+  outTime: string;
+  driverLicenceNo: string;
+  contactNoSign: string;
+  securitySign: string;
+}
+
 export interface AppState {
   scriptUrl: string | null;
   departments: Department[];
@@ -65,5 +81,6 @@ export interface AppState {
   stock: Stock[];
   materialIssues: MaterialIssue[];
   materialIssueItems: MaterialIssueItem[];
+  gateEntries: GateEntry[];
   isSyncing: boolean;
 }

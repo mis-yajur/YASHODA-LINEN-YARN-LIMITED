@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AppState, Item, Department, Warehouse, Stock, MaterialIssue, Supplier, MaterialIssueItem } from '../types';
+import { AppState, Item, Department, Warehouse, Stock, MaterialIssue, Supplier, MaterialIssueItem, GateEntry } from '../types';
 
 interface AppContextType extends AppState {
   setScriptUrl: (url: string) => void;
@@ -8,6 +8,7 @@ interface AppContextType extends AppState {
   addDepartment: (dept: Omit<Department, 'id'>) => Promise<void>;
   addWarehouse: (wh: Omit<Warehouse, 'id'>) => Promise<void>;
   addSupplier: (sup: Omit<Supplier, 'id'>) => Promise<void>;
+  addGateEntry: (entry: Omit<GateEntry, 'id'>) => Promise<void>;
   issueMaterial: (issue: Omit<MaterialIssue, 'id'>, items: Omit<MaterialIssueItem, 'id' | 'issueId'>[]) => Promise<void>;
   receiveStock: (itemId: string, warehouseId: string, quantity: number, batchNo?: string) => Promise<void>;
 }
@@ -26,6 +27,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     stock: [],
     materialIssues: [],
     materialIssueItems: [],
+    gateEntries: [],
     isSyncing: false
   });
 
@@ -40,7 +42,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       warehouses: state.warehouses,
       stock: state.stock,
       materialIssues: state.materialIssues,
-      materialIssueItems: state.materialIssueItems
+      materialIssueItems: state.materialIssueItems,
+      gateEntries: state.gateEntries
     }));
   }, [state, initialized]);
 
@@ -82,6 +85,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               stock: data.stock || [],
               materialIssues: data.material_issues || [],
               materialIssueItems: data.material_issue_items || [],
+              gateEntries: data.gate_entries || [],
               isSyncing: false
             }));
             setInitialized(true);
@@ -136,6 +140,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     await syncToSheets('append', 'suppliers', sup);
   };
 
+  const addGateEntry = async (entryData: Omit<GateEntry, 'id'>) => {
+    const entry: GateEntry = { ...entryData, id: crypto.randomUUID() };
+    setState(s => ({ ...s, gateEntries: [...s.gateEntries, entry] }));
+    await syncToSheets('append', 'gate_entries', entry);
+  };
+
   const issueMaterial = async (issueData: Omit<MaterialIssue, 'id'>, itemsData: Omit<MaterialIssueItem, 'id' | 'issueId'>[]) => {
     const issue: MaterialIssue = { ...issueData, id: crypto.randomUUID() };
     const items = itemsData.map(i => ({ ...i, id: crypto.randomUUID(), issueId: issue.id }));
@@ -179,7 +189,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AppContext.Provider value={{ ...state, setScriptUrl, initApp, addItem, addDepartment, addWarehouse, addSupplier, issueMaterial, receiveStock }}>
+    <AppContext.Provider value={{ ...state, setScriptUrl, initApp, addItem, addDepartment, addWarehouse, addSupplier, addGateEntry, issueMaterial, receiveStock }}>
       {children}
     </AppContext.Provider>
   );
