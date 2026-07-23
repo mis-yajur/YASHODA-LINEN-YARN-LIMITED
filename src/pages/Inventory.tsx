@@ -33,14 +33,12 @@ export default function Inventory() {
   const [modalType, setModalType] = useState<'item' | 'transfer' | 'adjustment'>('item');
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Combine gate entries
-  const allGateEntries = useMemo(() => {
-    const yashoda = (gateEntriesYashoda || []).map(e => ({ ...e, companyType: 'Yashoda' as const }));
-    const aipl = (gateEntriesAIPL || []).map(e => ({ ...e, companyType: 'AIPL' as const }));
-    return [...yashoda, ...aipl];
-  }, [gateEntriesYashoda, gateEntriesAIPL]);
+  // Process Yashoda Gate Entries for Inventory Inward Stock and Item Master
+  const yashodaGateEntries = useMemo(() => {
+    return (gateEntriesYashoda || []).map(e => ({ ...e, companyType: 'Yashoda' as const }));
+  }, [gateEntriesYashoda]);
 
-  // Aggregate Gate Entries by Material Description for Inward Stock
+  // Aggregate Yashoda Gate Entries by Material Description for Inward Stock
   const gateInwardStockSummary = useMemo(() => {
     const map: Record<string, {
       materialDescription: string;
@@ -55,7 +53,7 @@ export default function Inventory() {
       companies: Set<string>;
     }> = {};
 
-    allGateEntries.forEach(entry => {
+    yashodaGateEntries.forEach(entry => {
       const matName = (entry.materialDescription || 'Unspecified Material').trim();
       const key = matName.toLowerCase();
 
@@ -90,16 +88,16 @@ export default function Inventory() {
     });
 
     return Object.values(map);
-  }, [allGateEntries]);
+  }, [yashodaGateEntries]);
 
-  // Sync Gate Entries to Item Master & Current Stock
+  // Sync Yashoda Gate Entries to Item Master & Current Stock
   const handleSyncGateEntriesToInventory = async () => {
     if (gateInwardStockSummary.length === 0) {
-      alert('No Gate Entry records available to sync.');
+      alert('No Yashoda Gate Entry records available to sync.');
       return;
     }
 
-    if (!window.confirm(`Sync ${gateInwardStockSummary.length} material categories from Gate Register to Item Master & Current Stock?`)) {
+    if (!window.confirm(`Sync ${gateInwardStockSummary.length} material categories from Yashoda Gate Register into Item Master & Current Stock?`)) {
       return;
     }
 
@@ -116,14 +114,14 @@ export default function Inventory() {
         let itemId = existingItem?.id;
 
         if (!existingItem) {
-          const sku = 'GE-' + Math.floor(1000 + Math.random() * 9000);
+          const sku = 'YASH-' + Math.floor(1000 + Math.random() * 9000);
           const newItem = {
             name: summary.materialDescription,
             sku,
             uom: summary.unit || 'Kgs',
-            categoryId: 'Raw Material',
+            categoryId: 'Yashoda Raw Material',
             reorderLevel: 10,
-            type: 'Inward Raw Material'
+            type: 'Yashoda Inward'
           };
           await addItem(newItem);
           createdCount++;
@@ -131,17 +129,16 @@ export default function Inventory() {
 
         // Add to stock
         if (summary.totalQty > 0) {
-          // Re-fetch item ID if newly created
           const matched = items.find(i => (i.name || '').toLowerCase() === summary.materialDescription.toLowerCase());
           const finalItemId = matched?.id || itemId || summary.materialDescription;
           if (receiveStock) {
-            await receiveStock(finalItemId, targetWarehouseId, summary.totalQty, 'GATE-SYNC');
+            await receiveStock(finalItemId, targetWarehouseId, summary.totalQty, 'YASHODA-GATE-INWARD');
             stockCount++;
           }
         }
       }
 
-      alert(`Sync Complete!\n• ${createdCount} new items created in Item Master.\n• ${stockCount} stock entries updated.`);
+      alert(`Yashoda Gate Entry Sync Complete!\n• ${createdCount} new items added to Item Master.\n• ${stockCount} stock entries updated.`);
     } catch (e: any) {
       console.error(e);
       alert('Error during sync: ' + (e.message || 'Failed'));
@@ -193,10 +190,10 @@ export default function Inventory() {
             onClick={handleSyncGateEntriesToInventory}
             disabled={isSyncing}
             className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium shadow-sm"
-            title="Import/sync all quantities and values from Gate Register into Inventory Stock and Item Master"
+            title="Import/sync quantities and values from Yashoda Gate Register into Inventory Stock and Item Master"
           >
             <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            Sync Gate Entries to Stock
+            Sync Yashoda Gate Entries to Stock
           </button>
 
           {activeTab === 'items' && (
@@ -224,7 +221,7 @@ export default function Inventory() {
           onClick={() => setActiveTab('gateInward')}
           className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'gateInward' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
         >
-          <Truck className="w-4 h-4 text-emerald-500" /> Gate Entry Inward Stock ({gateInwardStockSummary.length})
+          <Truck className="w-4 h-4 text-emerald-500" /> Yashoda Gate Inward ({gateInwardStockSummary.length})
         </button>
         <button
           onClick={() => setActiveTab('items')}
@@ -309,10 +306,10 @@ export default function Inventory() {
             <div>
               <h2 className="text-lg font-bold flex items-center gap-2">
                 <Truck className="w-5 h-5 text-emerald-500" />
-                Inward Received Quantities & Values (From Gate Register)
+                Yashoda Inward Received Quantities & Values
               </h2>
               <p className="text-xs text-gray-500">
-                Automatically calculated from Yashoda & Contractor AIPL Gate Entries
+                Captured exclusively from Yashoda Linen Yarn Ltd Gate Register entries
               </p>
             </div>
 
