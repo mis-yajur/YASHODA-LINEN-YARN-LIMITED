@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { ArrowRightLeft, Search, Plus, Trash2, FileText, ArrowLeftRight } from 'lucide-react';
 
 export default function MaterialIssue() {
-  const { departments, items, stock, issueMaterial } = useApp();
+  const { departments = [], items = [], stock = [], issueMaterial } = useApp();
   const [activeTab, setActiveTab] = useState<'issue' | 'requisition' | 'returns'>('issue');
 
   const [departmentId, setDepartmentId] = useState('');
@@ -105,8 +105,8 @@ export default function MaterialIssue() {
                   <label className="block text-sm font-medium mb-1">Select Item</label>
                   <select value={selectedItem} onChange={e => setSelectedItem(e.target.value)} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 outline-none">
                     <option value="">Search & Select Item...</option>
-                    {items.map(item => {
-                      const currentStock = stock.filter(s => s.itemId === item.id).reduce((sum, s) => sum + s.quantity, 0);
+                    {(items || []).map(item => {
+                      const currentStock = (stock || []).filter(s => s.itemId === item.id).reduce((sum, s) => sum + (s.quantity || 0), 0);
                       return (
                         <option key={item.id} value={item.id}>
                           {item.name} ({item.sku}) - Stock: {currentStock}

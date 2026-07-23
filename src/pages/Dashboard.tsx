@@ -4,34 +4,36 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Package, IndianRupee, ArrowRightLeft, TrendingUp } from 'lucide-react';
 
 export default function Dashboard() {
-  const { stock, items, materialIssues, gateEntries } = useApp();
+  const { stock = [], items = [], materialIssues = [], gateEntriesYashoda = [], gateEntriesAIPL = [] } = useApp();
 
   // Metrics
-  const currentStock = stock.reduce((sum, item) => sum + item.quantity, 0);
+  const currentStock = (stock || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
   
   // Mocking stock value for now since we don't have price on Item
-  const stockValue = stock.reduce((sum, item) => sum + (item.quantity * 150), 0); 
+  const stockValue = (stock || []).reduce((sum, item) => sum + ((item.quantity || 0) * 150), 0); 
 
   // This month transactions (Gate Entries + Material Issues)
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
   
-  const thisMonthIssues = materialIssues.filter(m => {
+  const thisMonthIssues = (materialIssues || []).filter(m => {
+    if (!m || !m.date) return false;
     const d = new Date(m.date);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    return !isNaN(d.getTime()) && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }).length;
   
-  const thisMonthGate = gateEntries.filter(g => {
+  const thisMonthGate = [...(gateEntriesYashoda || []), ...(gateEntriesAIPL || [])].filter(g => {
+    if (!g || !g.date) return false;
     const d = new Date(g.date);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    return !isNaN(d.getTime()) && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }).length;
   
   const thisMonthTransactions = thisMonthIssues + thisMonthGate;
 
   // Top 10 High Value Items (using quantity * mock price)
   const top10Items = useMemo(() => {
-    const itemTotals = items.map(item => {
-      const itemStock = stock.filter(s => s.itemId === item.id).reduce((sum, s) => sum + s.quantity, 0);
+    const itemTotals = (items || []).map(item => {
+      const itemStock = (stock || []).filter(s => s.itemId === item.id).reduce((sum, s) => sum + (s.quantity || 0), 0);
       return {
         name: item.name || 'Unknown',
         value: itemStock * 150, // mock price

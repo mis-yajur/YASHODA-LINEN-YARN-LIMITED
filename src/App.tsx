@@ -67,7 +67,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             </div>
             
             {/* Desktop Navigation */}
-            <nav className="hidden lg:flex flex-1 items-center space-x-1 overflow-x-auto px-2 scrollbar-hide">
+            <nav className="hidden lg:flex flex-1 items-center space-x-1 overflow-x-auto px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {navItems.map((item) => (
                 <Link
                   key={item.name}

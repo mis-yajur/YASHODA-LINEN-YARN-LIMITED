@@ -5,7 +5,7 @@ import { Plus, Search, Edit2, Trash2, X, Package, ArrowRightLeft, Settings2 } fr
 import { CSVUploader } from '../components/CSVUploader';
 
 export default function Inventory() {
-  const { items, addItem, stock, warehouses, stockTransfers, stockAdjustments, addStockTransfer, addStockAdjustment } = useApp();
+  const { items = [], addItem, stock = [], warehouses = [], stockTransfers = [], stockAdjustments = [], addStockTransfer, addStockAdjustment } = useApp();
   const [activeTab, setActiveTab] = useState<'items' | 'stock' | 'transfers' | 'adjustments'>('stock');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -26,9 +26,9 @@ export default function Inventory() {
     alert('Bulk upload completed');
   };
 
-  const filteredItems = items.filter(item => 
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    item.sku.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredItems = (items || []).filter(item => 
+    (item?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (item?.sku || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -145,10 +145,10 @@ export default function Inventory() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                {stock.map(s => {
-                  const item = items.find(i => i.id === s.itemId);
-                  const warehouse = warehouses.find(w => w.id === s.warehouseId);
-                  const isLow = item && s.quantity <= item.reorderLevel;
+                {(stock || []).map(s => {
+                  const item = (items || []).find(i => i.id === s.itemId);
+                  const warehouse = (warehouses || []).find(w => w.id === s.warehouseId);
+                  const isLow = item && s.quantity <= (item.reorderLevel || 0);
                   
                   return (
                     <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50">
@@ -165,7 +165,7 @@ export default function Inventory() {
                     </tr>
                   )
                 })}
-                {stock.length === 0 && (
+                {(!stock || stock.length === 0) && (
                   <tr>
                     <td colSpan={4} className="px-4 py-8 text-center text-gray-500">No stock records found.</td>
                   </tr>

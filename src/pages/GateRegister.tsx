@@ -7,7 +7,7 @@ import { GateEntry } from '../types';
 
 
 export default function GateRegister() {
-  const { gateEntriesYashoda, gateEntriesAIPL, addGateEntry, updateGateEntry, deleteGateEntry, clearAllGateEntries } = useApp();
+  const { gateEntriesYashoda = [], gateEntriesAIPL = [], addGateEntry, updateGateEntry, deleteGateEntry, clearAllGateEntries } = useApp();
   const [editId, setEditId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [companyType, setCompanyType] = useState<'AIPL' | 'Yashoda'>('Yashoda');
@@ -78,12 +78,12 @@ export default function GateRegister() {
     securitySign: ''
   });
 
-  const allEntries = [...(companyType === 'Yashoda' ? gateEntriesYashoda : gateEntriesAIPL)].reverse();
+  const allEntries = [...(companyType === 'Yashoda' ? (gateEntriesYashoda || []) : (gateEntriesAIPL || []))].reverse();
 
-  const filteredEntries = allEntries.filter(entry => 
-    entry.partyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    entry.materialDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    entry.vehicleNo.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredEntries = (allEntries || []).filter(entry => 
+    (entry?.partyName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (entry?.materialDescription || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (entry?.vehicleNo || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const ITEMS_PER_PAGE = 100;

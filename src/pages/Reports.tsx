@@ -13,15 +13,16 @@ import {
 } from 'recharts';
 
 export default function Reports() {
-  const { gateEntries } = useApp();
+  const { gateEntriesYashoda = [], gateEntriesAIPL = [] } = useApp();
   const [activeCategory, setActiveCategory] = useState<'inventory' | 'procurement' | 'consumption' | 'gate'>('gate');
 
-  const allGateEntries = useMemo(() => gateEntries, [gateEntries]);
+  const allGateEntries = useMemo(() => [...(gateEntriesYashoda || []), ...(gateEntriesAIPL || [])], [gateEntriesYashoda, gateEntriesAIPL]);
 
   // Generate data for Gate Entries by Date chart
   const gateEntriesByDate = useMemo(() => {
     const counts: Record<string, number> = {};
-    allGateEntries.forEach(entry => {
+    (allGateEntries || []).forEach(entry => {
+      if (!entry || !entry.date) return;
       // Parse dates safely
       const datePart = entry.date.split(' ')[0] || entry.date;
       counts[datePart] = (counts[datePart] || 0) + 1;
@@ -194,16 +195,16 @@ export default function Reports() {
 }
 
 function ConsumptionReportView() {
-  const { materialIssueItems, items, departments, materialIssues } = useApp();
+  const { materialIssueItems = [], items = [], departments = [], materialIssues = [] } = useApp();
 
   const consumptionByDepartment = useMemo(() => {
     const data: Record<string, number> = {};
-    materialIssueItems.forEach(item => {
-      const issue = materialIssues.find(mi => mi.id === item.issueId);
+    (materialIssueItems || []).forEach(item => {
+      const issue = (materialIssues || []).find(mi => mi.id === item.issueId);
       if (!issue) return;
-      const dept = departments.find(d => d.id === issue.departmentId);
+      const dept = (departments || []).find(d => d.id === issue.departmentId);
       const deptName = dept ? dept.name : issue.departmentId;
-      data[deptName] = (data[deptName] || 0) + item.quantity;
+      data[deptName] = (data[deptName] || 0) + (item.quantity || 0);
     });
     return Object.entries(data).map(([name, count]) => ({ name, count }));
   }, [materialIssueItems, materialIssues, departments]);
@@ -232,16 +233,16 @@ function ConsumptionReportView() {
 }
 
 function InventoryReportView() {
-  const { stock, items, warehouses } = useApp();
+  const { stock = [], items = [], warehouses = [] } = useApp();
 
   const lowStockData = useMemo(() => {
-    const data = items.map(item => {
-      const totalStock = stock.filter(s => s.itemId === item.id).reduce((sum, s) => sum + s.quantity, 0);
+    const data = (items || []).map(item => {
+      const totalStock = (stock || []).filter(s => s.itemId === item.id).reduce((sum, s) => sum + (s.quantity || 0), 0);
       return {
         name: item.name,
         stock: totalStock,
-        reorderLevel: item.reorderLevel,
-        isLow: totalStock <= item.reorderLevel
+        reorderLevel: item.reorderLevel || 0,
+        isLow: totalStock <= (item.reorderLevel || 0)
       };
     }).filter(d => d.isLow);
     return data;

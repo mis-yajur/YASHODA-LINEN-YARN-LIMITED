@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { CheckSquare, XSquare, Clock, Filter } from 'lucide-react';
 
 export default function Approvals() {
-  const { prs, stockTransfers, stockAdjustments } = useApp();
+  const { prs = [], stockTransfers = [], stockAdjustments = [] } = useApp();
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
 
   const pendingApprovals = [

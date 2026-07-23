@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Plus, Users, Mail, Phone, MapPin, X, FileText, ShoppingCart, CheckSquare } from 'lucide-react';
 
 export default function Procurement() {
-  const { suppliers, addSupplier, prs, pos, grns, addPR, addPO, addGRN, departments } = useApp();
+  const { suppliers = [], addSupplier, prs = [], pos = [], grns = [], addPR, addPO, addGRN, departments = [] } = useApp();
   const [activeTab, setActiveTab] = useState<'suppliers' | 'pr' | 'po' | 'grn'>('suppliers');
   
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);

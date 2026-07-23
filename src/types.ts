@@ -148,7 +148,8 @@ export interface AppState {
   stock: Stock[];
   materialIssues: MaterialIssue[];
   materialIssueItems: MaterialIssueItem[];
-  gateEntries: GateEntry[];
+  gateEntriesYashoda: GateEntry[];
+  gateEntriesAIPL: GateEntry[];
   prs: PurchaseRequisition[];
   pos: PurchaseOrder[];
   grns: GRN[];

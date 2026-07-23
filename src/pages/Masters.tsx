@@ -5,7 +5,7 @@ import { Plus, MapPin, Building, Store, X, FolderTree, Users, Factory, Pencil, T
 import { CSVUploader } from '../components/CSVUploader';
 
 export default function Masters() {
-    const { users, addUser, updateUser, items, addItem, warehouses, departments, addWarehouse, updateWarehouse, deleteWarehouse, addDepartment, updateDepartment, deleteDepartment, stock } = useApp();
+    const { users = [], addUser, updateUser, items = [], addItem, warehouses = [], departments = [], addWarehouse, updateWarehouse, deleteWarehouse, addDepartment, updateDepartment, deleteDepartment, stock = [] } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'warehouse' | 'department' | 'company' | 'user' | 'item'>('warehouse');
     const [activeTab, setActiveTab] = useState<'departments' | 'warehouses' | 'companies' | 'users' | 'items'>('departments');
@@ -42,14 +42,14 @@ export default function Masters() {
               setEditItem(null);
               if (activeTab === 'warehouses') setModalType('warehouse');
               else if (activeTab === 'departments') setModalType('department');
-              else if (activeTab === 'companies') setModalType('company');
+              else if (activeTab === 'companies') setModalType('user');
                             else if (activeTab === 'users') setModalType('user');
               else if (activeTab === 'items') setModalType('item');
               setIsModalOpen(true); 
             }}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
           >
-            <Plus className="w-5 h-5" /> Add {activeTab === 'warehouses' ? 'Warehouse' : activeTab === 'departments' ? 'Department' : activeTab === 'companies' ? 'Company' : activeTab === 'items' ? 'Item' : 'User'}
+            <Plus className="w-5 h-5" /> Add {activeTab === 'warehouses' ? 'Warehouse' : activeTab === 'departments' ? 'Department' : activeTab === 'companies' ? 'User' : activeTab === 'items' ? 'Item' : 'User'}
           </button>
           </div>
         )}
@@ -72,14 +72,9 @@ export default function Masters() {
           onClick={() => setActiveTab('companies')}
           className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-colors border-b-2 ${activeTab === 'companies' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
         >
-          <Factory className="w-4 h-4" /> Companies & Plants
+          <Users className="w-4 h-4" /> Users
         </button>
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-colors border-b-2 ${activeTab === 'users' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-        >
-          <Users className="w-4 h-4" /> Users & Roles
-        </button>
+        
               <button
           onClick={() => setActiveTab('items')}
           className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-colors border-b-2 ${activeTab === 'items' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
@@ -89,8 +84,8 @@ export default function Masters() {
       </div>
       {activeTab === 'warehouses' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {warehouses.map(wh => {
-            const whStock = stock.filter(i => i.warehouseId === wh.id);
+          {(warehouses || []).map(wh => {
+            const whStock = (stock || []).filter(i => i.warehouseId === wh.id);
             const totalItems = new Set(whStock.map(i => i.itemId)).size;
             const totalQuantity = whStock.reduce((sum, i) => sum + i.quantity, 0);
             
@@ -186,12 +181,12 @@ export default function Masters() {
       {activeTab === 'companies' && (
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
           <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
-            <h2 className="font-bold text-lg">Companies & Plants</h2>
+            <h2 className="font-bold text-lg">Users</h2>
             <button 
-              onClick={() => { setModalType('company'); setIsModalOpen(true); }}
+              onClick={() => { setModalType('user'); setIsModalOpen(true); }}
               className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
             >
-              <Plus className="w-4 h-4" /> Add Company/Plant
+              <Plus className="w-4 h-4" /> Add User
             </button>
           </div>
           <table className="w-full text-left">
@@ -201,6 +196,7 @@ export default function Masters() {
                 <th className="p-4">Email</th>
                 <th className="p-4">Role</th>
                 <th className="p-4">Status</th>
+                <th className="p-4">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -219,6 +215,36 @@ export default function Masters() {
                       {u.status}
                     </span>
                   </td>
+                  <td className="p-4">
+                    <button onClick={() => { setEditItem(u); setModalType('user'); setIsModalOpen(true); }} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+                    </table>
+        </div>
+      )}
+
+      {activeTab === 'items' && (
+        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm text-gray-500">
+              <tr>
+                <th className="p-4">SKU</th>
+                <th className="p-4">Name</th>
+                <th className="p-4">UOM</th>
+                <th className="p-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(item => (
+                <tr key={item.id} className="border-b border-gray-100 dark:border-zinc-800 last:border-0">
+                  <td className="p-4">{item.sku}</td>
+                  <td className="p-4 font-medium">{item.name}</td>
+                  <td className="p-4">{item.uom}</td>
+                  <td className="p-4">
+                    <button onClick={() => {}} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -226,99 +252,40 @@ export default function Masters() {
         </div>
       )}
 
-      {activeTab === 'users' && (
-        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
-            <h2 className="font-bold text-lg">Users & Roles</h2>
-            <button 
-              onClick={() => { setModalType('user'); setIsModalOpen(true); }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
-            >
-              <Plus className="w-4 h-4" /> Add User
-            </button>
-          </div>
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm text-gray-500">
-              <tr>
-                <th className="p-4">Name</th>
-                <th className="p-4">Email</th>
-                <th className="p-4">Role</th>
-                <th className="p-4">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="p-4 font-medium flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600">A</div>
-                  Admin User
-                </td>
-                <td className="p-4 text-gray-500">admin@yashoda.com</td>
-                <td className="p-4">Administrator</td>
-                <td className="p-4"><span className="text-green-600 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full text-xs font-medium">Active</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      )}
-
-            {activeTab === 'items' && (
-        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm text-gray-500">
-              <tr>
-                <th className="p-4">Name</th>
-                <th className="p-4">SKU</th>
-                <th className="p-4">Type</th>
-                <th className="p-4">UoM</th>
-                <th className="p-4">Reorder Lvl</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map(item => (
-              <tr key={item.id}>
-                <td className="p-4 font-medium">{item.name}</td>
-                <td className="p-4 text-gray-500">{item.sku}</td>
-                <td className="p-4">{item.type}</td>
-                <td className="p-4">{item.uom}</td>
-                <td className="p-4">{item.reorderLevel}</td>
-              </tr>
-              ))}
-              {items.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-gray-500">No items found</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      )}
       {isModalOpen && (
-        <LocationModal 
+        <MasterModal 
           type={modalType}
           initialData={editItem}
-          onClose={() => { setIsModalOpen(false); setEditItem(null); }} 
-          onSave={(data) => { 
+          onClose={() => { setIsModalOpen(false); setEditItem(null); }}
+          onSave={async (data) => {
             if (modalType === 'warehouse') {
-              if (editItem) updateWarehouse(editItem.id, data);
-              else addWarehouse(data);
+              if (editItem) await updateWarehouse(editItem.id, data);
+              else await addWarehouse(data);
             }
             else if (modalType === 'department') {
-              if (editItem) updateDepartment(editItem.id, data);
-              else addDepartment(data);
+              if (editItem) await updateDepartment(editItem.id, data);
+              else await addDepartment(data);
             }
-            else if (modalType === 'item') { 
-              addItem(data);
+            else if (modalType === 'company') {
+              // noop
+            }
+            else if (modalType === 'item') {
+               await addItem(data);
             }
             else if (modalType === 'user') {
-              if (editItem) updateUser(editItem.id, data);
-              else addUser(data);
+              if (editItem) await updateUser(editItem.id, data);
+              else await addUser(data);
             }
             setIsModalOpen(false);
             setEditItem(null);
-          }} 
+          }}
         />
       )}
     </div>
   );
 }
 
-function LocationModal({ type, onClose, onSave, initialData }: { type: 'warehouse' | 'department' | 'company' | 'user' | 'item', onClose: () => void, onSave: (data: any) => void, initialData?: any }) {
+function MasterModal({ type, onClose, onSave, initialData }: { type: string, onClose: () => void, onSave: (data: any) => void, initialData?: any }) {
   const [formData, setFormData] = useState(
     initialData || (
     type === 'warehouse' ? { name: '', type: 'Warehouse' } :
