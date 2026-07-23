@@ -61,7 +61,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex items-center shrink-0 mr-4">
               <Link to="/" className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-xl">
                 <Database className="w-8 h-8 shrink-0" />
-                <span className="hidden md:block whitespace-nowrap">YASHODA LINEN YARN</span>
+                <span className="hidden md:block whitespace-nowrap">Yashoda</span>
                 <span className="md:hidden whitespace-nowrap">ERP</span>
               </Link>
             </div>

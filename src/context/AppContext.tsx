@@ -34,10 +34,10 @@ interface AppContextType extends AppState {
   updateWarehouse: (id: string, data: Partial<Warehouse>) => Promise<void>;
   deleteWarehouse: (id: string) => Promise<void>;
   addSupplier: (sup: Omit<Supplier, 'id'>) => Promise<void>;
-    addGateEntry: (entry: Omit<GateEntry, 'id'>) => Promise<void>;
-  updateGateEntry: (id: string, data: Partial<GateEntry>) => Promise<void>;
-  deleteGateEntry: (id: string) => Promise<void>;
-  clearAllGateEntries: () => Promise<void>;
+    addGateEntry: (entry: Omit<GateEntry, 'id'>, type: 'Yashoda' | 'AIPL') => Promise<void>;
+  updateGateEntry: (id: string, data: Partial<GateEntry>, type: 'Yashoda' | 'AIPL') => Promise<void>;
+  deleteGateEntry: (id: string, type: 'Yashoda' | 'AIPL') => Promise<void>;
+  clearAllGateEntries: (type: 'Yashoda' | 'AIPL') => Promise<void>;
   addPR: (pr: Omit<PurchaseRequisition, 'id'>) => Promise<void>;
   addPO: (po: Omit<PurchaseOrder, 'id'>) => Promise<void>;
   addGRN: (grn: Omit<GRN, 'id'>) => Promise<void>;
@@ -60,7 +60,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     stock: [],
     materialIssues: [],
     materialIssueItems: [],
-    gateEntries: [],
+    gateEntriesYashoda: [], gateEntriesAIPL: [],
     prs: [],
     pos: [],
     grns: [],
@@ -91,7 +91,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const collections = [
       'users',
       'departments', 'suppliers', 'items', 'warehouses', 'stock',
-      'materialIssues', 'materialIssueItems', 'gateEntries', 'prs',
+      'materialIssues', 'materialIssueItems', 'gateEntriesYashoda', 'gateEntriesAIPL', 'prs',
       'pos', 'grns', 'stockTransfers', 'stockAdjustments'
     ];
     
@@ -128,7 +128,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       ...s,
       user: null,
       users: [], departments: [], suppliers: [], items: [], warehouses: [], stock: [],
-      materialIssues: [], materialIssueItems: [], gateEntries: [], prs: [],
+      materialIssues: [], materialIssueItems: [], gateEntriesYashoda: [], gateEntriesAIPL: [], prs: [],
       pos: [], grns: [], stockTransfers: [], stockAdjustments: []
     }));
   }
@@ -176,7 +176,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         console.error("Auth creation failed", e);
         throw new Error(e.message || "Failed to create authentication user");
       } finally {
-        await secondaryApp.delete();
+        const { deleteApp } = await import('firebase/app'); await deleteApp(secondaryApp);
       }
     }
     const { password, ...rest } = userData;
@@ -191,14 +191,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const updateWarehouse = async (id: string, data: Partial<Warehouse>) => firestoreUpdate('warehouses', id, data);
   const deleteWarehouse = async (id: string) => firestoreDelete('warehouses', id);
   const addSupplier = async (sup: Omit<Supplier, 'id'>) => firestoreAdd('suppliers', sup);
-    const addGateEntry = async (entry: Omit<GateEntry, 'id'>) => firestoreAdd('gateEntries', entry);
-  const updateGateEntry = async (id: string, data: Partial<GateEntry>) => firestoreUpdate('gateEntries', id, data);
-  const deleteGateEntry = async (id: string) => firestoreDelete('gateEntries', id);
-  const clearAllGateEntries = async () => {
-    const querySnapshot = await getDocs(collection(db, 'gateEntries'));
+    const addGateEntry = async (entry: Omit<GateEntry, 'id'>, type: 'Yashoda' | 'AIPL') => firestoreAdd(type === 'Yashoda' ? 'gateEntriesYashoda' : 'gateEntriesAIPL', entry);
+  const updateGateEntry = async (id: string, data: Partial<GateEntry>, type: 'Yashoda' | 'AIPL') => firestoreUpdate(type === 'Yashoda' ? 'gateEntriesYashoda' : 'gateEntriesAIPL', id, data);
+  const deleteGateEntry = async (id: string, type: 'Yashoda' | 'AIPL') => firestoreDelete(type === 'Yashoda' ? 'gateEntriesYashoda' : 'gateEntriesAIPL', id);
+  const clearAllGateEntries = async (type: 'Yashoda' | 'AIPL') => {
+    const coll = type === 'Yashoda' ? 'gateEntriesYashoda' : 'gateEntriesAIPL';
+    const querySnapshot = await getDocs(collection(db, coll));
     const batch = writeBatch(db);
     querySnapshot.forEach((docSnap) => {
-      batch.delete(doc(db, 'gateEntries', docSnap.id));
+      batch.delete(doc(db, coll, docSnap.id));
     });
     await batch.commit();
   };

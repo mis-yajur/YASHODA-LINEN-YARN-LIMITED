@@ -7,7 +7,7 @@ import { GateEntry } from '../types';
 
 
 export default function GateRegister() {
-  const { gateEntries, addGateEntry, updateGateEntry, deleteGateEntry, clearAllGateEntries } = useApp();
+  const { gateEntriesYashoda, gateEntriesAIPL, addGateEntry, updateGateEntry, deleteGateEntry, clearAllGateEntries } = useApp();
   const [editId, setEditId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [companyType, setCompanyType] = useState<'AIPL' | 'Yashoda'>('Yashoda');
@@ -15,7 +15,6 @@ export default function GateRegister() {
   const handleBulkUpload = async (data: any[]) => {
     for (const row of data) {
       const entry: Omit<GateEntry, 'id'> = {
-        companyType: row.companyType || companyType,
         slNo: row.slNo || String(Date.now()),
         date: row.date || new Date().toISOString().split('T')[0],
         vehicleNo: row.vehicleNo || '',
@@ -79,7 +78,7 @@ export default function GateRegister() {
     securitySign: ''
   });
 
-  const allEntries = gateEntries.filter(g => (g.companyType === companyType || (!g.companyType && companyType === 'Yashoda'))).reverse();
+  const allEntries = [...(companyType === 'Yashoda' ? gateEntriesYashoda : gateEntriesAIPL)].reverse();
 
   const filteredEntries = allEntries.filter(entry => 
     entry.partyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -119,7 +118,7 @@ export default function GateRegister() {
             let entry = {};
             if (true) {
               entry = {
-                companyType,
+                
                 slNo: currentSlNo.toString(),
                 date: row[1] || '',
                 vehicleNo: row[2] || '',
@@ -143,7 +142,7 @@ export default function GateRegister() {
                 securitySign: row[20] || ''
               };
             }
-            await addGateEntry(entry as any);
+            await addGateEntry(entry as any, companyType);
           }
           alert("Import successful");
         } catch (error) {
@@ -186,7 +185,7 @@ export default function GateRegister() {
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this entry?')) {
-      await deleteGateEntry(id);
+      await deleteGateEntry(id, companyType);
     }
   };
 
@@ -212,7 +211,7 @@ export default function GateRegister() {
         await updateGateEntry(editId, { ...formData });
       } else {
         const slNo = (allEntries.length + 1).toString();
-        await addGateEntry({ ...formData, slNo, companyType });
+        await addGateEntry({ ...formData, slNo }, companyType);
       }
       setIsModalOpen(false);
       setEditId(null);
@@ -289,7 +288,7 @@ export default function GateRegister() {
           <button onClick={() => { setEditId(null); setIsModalOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
             <Plus className="w-4 h-4" /> New Entry
           </button>
-          <button onClick={async () => { if (confirm('Delete ALL Gate Entries? This cannot be undone.')) await clearAllGateEntries(); }} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
+          <button onClick={async () => { if (confirm('Delete ALL Gate Entries? This cannot be undone.')) await clearAllGateEntries(companyType); }} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
             <X className="w-4 h-4" /> Delete All
           </button>
         </div>
@@ -391,7 +390,7 @@ export default function GateRegister() {
                   {hasContactNoSign && <td className="px-4 py-3">{entry.contactNoSign || '-'}</td>}
                   {hasSecuritySign && <td className="px-4 py-3">{entry.securitySign || '-'}</td>}
                   <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex justify-end gap-2 opacity-100 transition-opacity">
                       <button onClick={(e) => { e.stopPropagation(); handleEdit(entry); }} className="p-1 text-gray-500 hover:text-indigo-600 transition-colors" title="Edit">
                         <Edit className="w-4 h-4" />
                       </button>
