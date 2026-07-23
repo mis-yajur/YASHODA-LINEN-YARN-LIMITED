@@ -35,7 +35,7 @@ export default function Inventory() {
 
   const [activeTab, setActiveTab] = useState<'stock' | 'gateInward' | 'items' | 'transfers' | 'adjustments'>('stock');
   const [itemMasterSubTab, setItemMasterSubTab] = useState<'catalog' | 'gateLogs'>('catalog');
-  const [stockUnitMode, setStockUnitMode] = useState<'TON' | 'KGS' | 'NATIVE'>('TON');
+  const [stockUnitMode, setStockUnitMode] = useState<'TON' | 'KGS' | 'NATIVE'>('NATIVE');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'item' | 'transfer' | 'adjustment'>('item');
@@ -171,41 +171,13 @@ export default function Inventory() {
       }
     });
 
-    // 2. Process Item Master & Manual Stock records
+    // 2. Enhance metadata (SKU/reorderLevel) from Item Master if available
     (items || []).forEach(item => {
       const key = (item.name || '').trim().toLowerCase();
       if (!key) return;
-
-      if (!map[key]) {
-        map[key] = {
-          key,
-          itemName: item.name,
-          sku: item.sku || 'SKU-' + item.id.substring(0, 5),
-          uom: item.uom || 'Kgs',
-          category: item.categoryId || 'Raw Material',
-          warehouse: 'Main Mill Store',
-          inwardQty: 0,
-          issuedQty: 0,
-          currentStock: 0,
-          avgRate: 0,
-          totalInwardValue: 0,
-          totalValue: 0,
-          reorderLevel: item.reorderLevel || 10,
-          isLow: false,
-          sources: ['Item Master']
-        };
-      } else {
+      if (map[key]) {
         if (item.sku) map[key].sku = item.sku;
         if (item.reorderLevel) map[key].reorderLevel = item.reorderLevel;
-      }
-    });
-
-    // Add manual stock records if any
-    (stock || []).forEach(s => {
-      const matchedItem = items.find(i => i.id === s.itemId);
-      const key = matchedItem ? matchedItem.name.trim().toLowerCase() : String(s.itemId).trim().toLowerCase();
-      if (map[key]) {
-        map[key].inwardQty += (s.quantity > 0 ? s.quantity : 0);
       }
     });
 
@@ -214,31 +186,12 @@ export default function Inventory() {
       const matchedItem = items.find(i => i.id === mi.itemId);
       const key = matchedItem ? matchedItem.name.trim().toLowerCase() : String(mi.itemId).trim().toLowerCase();
       const rawQty = Number(mi.quantity) || 0;
-      const targetUom = map[key]?.uom || matchedItem?.uom || 'Kgs';
-      const issueUom = mi.unit || matchedItem?.uom || targetUom;
-      const convertedQty = convertUnitQuantity(rawQty, issueUom, targetUom);
 
       if (map[key]) {
+        const targetUom = map[key].uom || 'Kgs';
+        const issueUom = mi.unit || targetUom;
+        const convertedQty = convertUnitQuantity(rawQty, issueUom, targetUom);
         map[key].issuedQty += convertedQty;
-      } else {
-        const name = matchedItem ? matchedItem.name : String(mi.itemId);
-        map[key] = {
-          key,
-          itemName: name,
-          sku: matchedItem?.sku || 'SKU-OUT',
-          uom: targetUom,
-          category: 'Issued Material',
-          warehouse: 'Production Store',
-          inwardQty: 0,
-          issuedQty: convertedQty,
-          currentStock: 0,
-          avgRate: 0,
-          totalInwardValue: 0,
-          totalValue: 0,
-          reorderLevel: 10,
-          isLow: true,
-          sources: ['Department Issue']
-        };
       }
     });
 
@@ -434,12 +387,16 @@ export default function Inventory() {
     let displayIssued = st.issuedQty;
     let displayCurrent = st.currentStock;
 
-    if (stockUnitMode === 'TON') {
+    const massUnits = ['KG', 'KGS', 'KILOGRAM', 'KILOGRAMS', 'TON', 'TONS', 'MT', 'TONNE', 'TONNES', 'QUINTAL', 'G', 'GRAM'];
+    const cleanUom = (st.uom || '').trim().toUpperCase().replace(/[^A-Z]/g, '');
+    const isMass = massUnits.includes(cleanUom);
+
+    if (stockUnitMode === 'TON' && isMass) {
       displayUom = 'TON';
       displayInward = convertUnitQuantity(st.inwardQty, st.uom, 'TON');
       displayIssued = convertUnitQuantity(st.issuedQty, st.uom, 'TON');
       displayCurrent = convertUnitQuantity(st.currentStock, st.uom, 'TON');
-    } else if (stockUnitMode === 'KGS') {
+    } else if (stockUnitMode === 'KGS' && isMass) {
       displayUom = 'Kgs';
       displayInward = convertUnitQuantity(st.inwardQty, st.uom, 'KGS');
       displayIssued = convertUnitQuantity(st.issuedQty, st.uom, 'KGS');
