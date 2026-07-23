@@ -1,0 +1,62 @@
+// Replace this entire file in your Google Apps Script project (Code.gs)
+// After updating, click "Deploy" -> "New deployment" -> "Web App"
+// Ensure "Execute as: Me" and "Who has access: Anyone" are selected.
+// Copy the new Web App URL and paste it into the Settings page of the app.
+
+function doPost(e) {
+  try {
+    // Parse the payload correctly handling CORS text/plain fallback
+    var payload = JSON.parse(e.postData.contents);
+    var action = payload.action;
+    var sheetName = payload.sheetName;
+    var data = payload.data;
+    
+    var doc = SpreadsheetApp.getActiveSpreadsheet();
+    
+    // Map sheet names
+    var sheetNameMapping = {
+      'items': 'Items',
+      'departments': 'Departments',
+      'warehouses': 'Warehouses',
+      'suppliers': 'Suppliers',
+      'gate_entries': 'GateEntries',
+      'material_issues': 'MaterialIssues',
+      'material_issue_items': 'MaterialIssues',
+      'prs': 'PRs',
+      'pos': 'POs',
+      'grns': 'GRNs',
+      'stock_transfers': 'StockTransfers',
+      'stock_adjustments': 'StockAdjustments'
+    };
+    
+    var targetSheetName = sheetNameMapping[sheetName] || sheetName;
+    var sheet = doc.getSheetByName(targetSheetName);
+    
+    if (!sheet) {
+      sheet = doc.insertSheet(targetSheetName);
+    }
+    
+    if (action === 'append') {
+      var rowData = [];
+      for (var key in data) {
+        if (typeof data[key] === 'object') {
+          rowData.push(JSON.stringify(data[key]));
+        } else {
+          rowData.push(data[key]);
+        }
+      }
+      sheet.appendRow(rowData);
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify({ success: true }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput("Yashoda ERP App Script is running.")
+    .setMimeType(ContentService.MimeType.TEXT);
+}

@@ -119,6 +119,7 @@ export interface StockAdjustment {
 }
 
 export interface AppState {
+  scriptUrl?: string;
   departments: Department[];
   suppliers: Supplier[];
   items: Item[];

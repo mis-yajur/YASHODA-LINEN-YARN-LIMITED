@@ -63,44 +63,62 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const syncToSheets = async (actionName: string, sheetName: string, payload: any) => {
     try {
-      const { appendRow } = await import('../lib/sheets');
-      const spreadsheetId = localStorage.getItem('yashoda_inventory_spreadsheet_id');
-      if (!spreadsheetId) {
-        // App is not connected to sheets yet, just save locally.
-        return;
+      const savedUrl = state.scriptUrl || localStorage.getItem('yashoda_inventory_script_url');
+      if (savedUrl) {
+        // Use Google Apps Script Web App
+        await fetch(savedUrl, {
+          method: 'POST',
+          headers: {
+            // Using text/plain avoids CORS preflight OPTIONS request
+            'Content-Type': 'text/plain;charset=utf-8',
+          },
+          body: JSON.stringify({
+            action: actionName,
+            sheetName: sheetName,
+            data: payload
+          })
+        });
+      } else {
+        // Fallback to Google Sheets API (OAuth) if Apps Script isn't configured
+        const { appendRow } = await import('../lib/sheets');
+        const spreadsheetId = localStorage.getItem('yashoda_inventory_spreadsheet_id');
+        if (!spreadsheetId) {
+          // App is not connected to sheets yet, just save locally.
+          return;
+        }
+        
+        // Map payload object to a flat array of string values
+        const values = Object.values(payload).map(val => 
+          typeof val === 'string' ? val : JSON.stringify(val)
+        );
+
+        // Map snake_case to PascalCase for the tab titles created in sheets.ts
+        const sheetNameMapping: Record<string, string> = {
+          'items': 'Items',
+          'departments': 'Departments',
+          'warehouses': 'Warehouses',
+          'suppliers': 'Suppliers',
+          'gate_entries': 'GateEntries',
+          'material_issues': 'MaterialIssues',
+          'material_issue_items': 'MaterialIssues', // Just putting items in MaterialIssues tab for now
+          'prs': 'PRs',
+          'pos': 'POs',
+          'grns': 'GRNs',
+          'stock_transfers': 'StockTransfers',
+          'stock_adjustments': 'StockAdjustments'
+        };
+
+        const mappedSheetName = sheetNameMapping[sheetName] || sheetName;
+        await appendRow(spreadsheetId, mappedSheetName, values);
       }
-      
-      // Map payload object to a flat array of string values
-      const values = Object.values(payload).map(val => 
-        typeof val === 'string' ? val : JSON.stringify(val)
-      );
-
-      // Map snake_case to PascalCase for the tab titles created in sheets.ts
-      const sheetNameMapping: Record<string, string> = {
-        'items': 'Items',
-        'departments': 'Departments',
-        'warehouses': 'Warehouses',
-        'suppliers': 'Suppliers',
-        'gate_entries': 'GateEntries',
-        'material_issues': 'MaterialIssues',
-        'material_issue_items': 'MaterialIssues', // Just putting items in MaterialIssues tab for now
-        'prs': 'PRs',
-        'pos': 'POs',
-        'grns': 'GRNs',
-        'stock_transfers': 'StockTransfers',
-        'stock_adjustments': 'StockAdjustments'
-      };
-
-      const mappedSheetName = sheetNameMapping[sheetName] || sheetName;
-
-      await appendRow(spreadsheetId, mappedSheetName, values);
     } catch (e) {
       console.error('Offline or sync failed. Data saved locally.', e);
     }
   };
 
   const setScriptUrl = (url: string) => {
-    // Deprecated
+    setState(s => ({ ...s, scriptUrl: url }));
+    localStorage.setItem('yashoda_inventory_script_url', url);
   };
 
   const initApp = async () => {
