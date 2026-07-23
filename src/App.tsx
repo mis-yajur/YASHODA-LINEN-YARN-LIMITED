@@ -24,7 +24,7 @@ import Notifications from './pages/Notifications';
 import GateRegister from './pages/GateRegister';
 
 function Layout({ children }: { children: React.ReactNode }) {
-  const { initApp, isSyncing } = useApp();
+  const { initApp, isSyncing, user, login, logout } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
 
@@ -79,6 +79,15 @@ function Layout({ children }: { children: React.ReactNode }) {
             
             <div className="hidden lg:flex items-center ml-4 pl-4 border-l border-gray-200 dark:border-zinc-800 shrink-0">
               {isSyncing && <span className="text-xs text-gray-500 animate-pulse mr-2">Syncing...</span>}
+              {user ? (
+                <button onClick={logout} className="p-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors">
+                  Logout
+                </button>
+              ) : (
+                <button onClick={login} className="p-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 transition-colors">
+                  Login
+                </button>
+              )}
               <button 
                 onClick={() => setDarkMode(!darkMode)}
                 className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full transition-colors"

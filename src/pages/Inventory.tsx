@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Item } from '../types';
 import { Plus, Search, Edit2, Trash2, X, Package, ArrowRightLeft, Settings2 } from 'lucide-react';
+import { CSVUploader } from '../components/CSVUploader';
 
 export default function Inventory() {
   const { items, addItem, stock, warehouses, stockTransfers, stockAdjustments, addStockTransfer, addStockAdjustment } = useApp();
@@ -9,6 +10,21 @@ export default function Inventory() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'item' | 'transfer' | 'adjustment'>('item');
+  const handleBulkUpload = async (data: any[]) => {
+    for (const row of data) {
+      if (activeTab === 'items') {
+        await addItem({ 
+          name: row.name || '', 
+          sku: row.sku || '', 
+          categoryId: row.categoryId || 'Cat-1', 
+          uom: row.uom || 'Kgs', 
+          reorderLevel: Number(row.reorderLevel) || 10, 
+          type: row.type || 'Raw Material' 
+        });
+      }
+    }
+    alert('Bulk upload completed');
+  };
 
   const filteredItems = items.filter(item => 
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -20,12 +36,15 @@ export default function Inventory() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold">Inventory Management</h1>
         {activeTab === 'items' && (
-          <button 
+          <div className="flex gap-2">
+            <CSVUploader onUpload={handleBulkUpload} />
+            <button 
             onClick={() => { setModalType('item'); setIsModalOpen(true); }}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
           >
             <Plus className="w-5 h-5" /> Add Item
-          </button>
+            </button>
+          </div>
         )}
       </div>
 

@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Because this is an ERP, we will allow anyone signed in to read/write for now
+    // In a real scenario, this would be highly locked down by role.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /gateEntries/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /departments/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /warehouses/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /items/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /suppliers/{id} {
+      allow read, write: if isSignedIn();
+    }
+  }
+}

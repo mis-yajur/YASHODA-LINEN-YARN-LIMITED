@@ -1,9 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AppState, Item, Department, Warehouse, Stock, MaterialIssue, Supplier, MaterialIssueItem, GateEntry, PurchaseRequisition, PurchaseOrder, GRN, StockTransfer, StockAdjustment } from '../types';
 
+import { User } from 'firebase/auth';
+
 interface AppContextType extends AppState {
-  setScriptUrl: (url: string) => void;
-  initApp: () => Promise<void>;
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
+    initApp: () => Promise<void>;
   addItem: (item: Omit<Item, 'id'>) => Promise<void>;
   addDepartment: (dept: Omit<Department, 'id'>) => Promise<void>;
   updateDepartment: (id: string, data: Partial<Department>) => Promise<void>;

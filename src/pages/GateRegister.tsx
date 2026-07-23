@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn } from 'lucide-react';
+import { CSVUploader } from '../components/CSVUploader';
 import { GateEntry } from '../types';
 
 
@@ -10,6 +11,27 @@ export default function GateRegister() {
   const [searchTerm, setSearchTerm] = useState('');
   const [companyType, setCompanyType] = useState<'AIPL' | 'Yashoda'>('Yashoda');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const handleBulkUpload = async (data: any[]) => {
+    for (const row of data) {
+      const entry: Omit<GateEntry, 'id'> = {
+        companyType: row.companyType || companyType,
+        slNo: row.slNo || String(Date.now()),
+        date: row.date || new Date().toISOString().split('T')[0],
+        vehicleNo: row.vehicleNo || '',
+        partyName: row.partyName || '',
+        materialDescription: row.materialDescription || '',
+        quantityWeight: row.quantityWeight || '',
+        unit: row.unit || 'Kgs',
+        invoiceNoValue: row.invoiceNoValue || '',
+        inTime: row.inTime || '',
+        outTime: row.outTime || '',
+        driverLicenceNo: row.driverLicenceNo || '',
+        contactNoSign: row.contactNoSign || ''
+      };
+      await addGateEntry(entry);
+    }
+    alert('Bulk upload completed');
+  };
   const [sheetEntries, setSheetEntries] = useState<Omit<GateEntry, 'id'>[]>([]);
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
   
@@ -33,13 +55,14 @@ export default function GateRegister() {
           vehicleNo: row[2] || '',
           partyName: row[3] || '',
           materialDescription: row[4] || '',
-          quantityWeight: row[5] || '',
-          inTime: row[6] || '',
-          outTime: row[7] || '',
-          invoiceNoValue: row[8] || '',
-          driverLicenceNo: row[9] || '',
-          contactNoSign: row[10] || '',
-          securitySign: ''
+                    quantityWeight: row[5] || '',
+          unit: row[6] || '',
+          inTime: row[7] || '',
+          outTime: row[8] || '',
+          invoiceNoValue: row[9] || '',
+          driverLicenceNo: row[10] || '',
+          contactNoSign: row[11] || '',
+          securitySign: row[12] || ''
         }));
         setSheetEntries(mappedEntries);
       }
@@ -58,7 +81,8 @@ export default function GateRegister() {
     vehicleNo: '',
     partyName: '',
     materialDescription: '',
-    quantityWeight: '',
+        quantityWeight: '',
+    unit: 'Kgs',
     inTime: '',
     outTime: '',
     invoiceNoValue: '',
@@ -67,7 +91,7 @@ export default function GateRegister() {
     securitySign: ''
   });
 
-  const allEntries = [...sheetEntries, ...gateEntries.filter(g => (g.companyType === companyType || (!g.companyType && companyType === 'Yashoda')) && !sheetEntries.some(s => s.slNo === g.slNo))].reverse();
+  const allEntries = gateEntries.filter(g => (g.companyType === companyType || (!g.companyType && companyType === 'Yashoda'))).reverse();
 
   const filteredEntries = allEntries.filter(entry => 
     entry.partyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -84,13 +108,66 @@ export default function GateRegister() {
     currentPage * ITEMS_PER_PAGE
   );
 
+  
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target?.result;
+      if (typeof text !== 'string') return;
+      
+      const rows = text.split('\n').map(row => row.split(',').map(cell => cell.replace(/^"|"$/g, '').trim()));
+      // Assuming headers are on the first row
+      if (rows.length > 1) {
+        setIsSyncing(true);
+        try {
+          let currentSlNo = allEntries.length;
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (row.length < 5) continue; // Skip empty rows
+            
+            currentSlNo++;
+            const entry: any = {
+              slNo: currentSlNo.toString(),
+              date: row[1] || '',
+              vehicleNo: row[2] || '',
+              partyName: row[3] || '',
+              materialDescription: row[4] || '',
+              quantityWeight: row[5] || '',
+              unit: row[6] || 'Kgs',
+              inTime: row[7] || '',
+              outTime: row[8] || '',
+              invoiceNoValue: row[9] || '',
+              driverLicenceNo: row[10] || '',
+              contactNoSign: row[11] || '',
+              securitySign: row[12] || '',
+              companyType
+            };
+            
+            await addGateEntry(entry);
+          }
+        } catch (e) {
+          console.error("Failed to import", e);
+          alert("Import failed partially or completely.");
+        } finally {
+          setIsSyncing(false);
+          // Reset file input
+          e.target.value = '';
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleExport = () => {
     // Basic CSV export
-    const headers = ['SL. No', 'Date', 'Vehicle No.', 'Party Name', 'Material Description', 'Quantity & Weight', 'In Time', 'Out Time', 'Invoice No./Value', 'Driver Licence No.', 'Contact No.'];
+    const headers = ['SL. No', 'Date', 'Vehicle No.', 'Party Name', 'Material Description', 'Quantity & Weight', 'Unit', 'In Time', 'Out Time', 'Invoice No./Value', 'Driver Licence No.', 'Contact No.', 'Security Sign'];
     const csvContent = "data:text/csv;charset=utf-8," 
       + headers.join(',') + '\n'
       + filteredEntries.map(e => {
-        return `"${e.slNo}","${e.date}","${e.vehicleNo}","${e.partyName}","${e.materialDescription}","${e.quantityWeight}","${e.inTime}","${e.outTime}","${e.invoiceNoValue}","${e.driverLicenceNo}","${e.contactNoSign}"`;
+        return `"${e.slNo}","${e.date}","${e.vehicleNo}","${e.partyName}","${e.materialDescription}","${e.quantityWeight}","${e.unit}","${e.inTime}","${e.outTime}","${e.invoiceNoValue}","${e.driverLicenceNo}","${e.contactNoSign}","${e.securitySign}"`;
       }).join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -121,8 +198,9 @@ export default function GateRegister() {
         vehicleNo: '',
         partyName: '',
         materialDescription: '',
-        quantityWeight: '',
-        inTime: '',
+            quantityWeight: '',
+    unit: 'Kgs',
+    inTime: '',
         outTime: '',
         invoiceNoValue: '',
         driverLicenceNo: '',
@@ -146,6 +224,30 @@ export default function GateRegister() {
           <MapPin className="w-6 h-6 text-indigo-600" /> Gate Entry Register
         </h1>
         <div className="flex gap-2 items-center">
+          <div className="relative overflow-hidden inline-block">
+            <input 
+              type="file" 
+              accept=".csv" 
+              onChange={handleImport} 
+              className="absolute inset-0 opacity-0 cursor-pointer" 
+              title="Import CSV"
+            />
+            <button className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium">
+              <Download className="w-4 h-4 rotate-180" /> Import CSV
+            </button>
+          </div>
+          <div className="relative overflow-hidden inline-block">
+            <input 
+              type="file" 
+              accept=".csv" 
+              onChange={handleImport} 
+              className="absolute inset-0 opacity-0 cursor-pointer" 
+              title="Import CSV"
+            />
+            <button className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium">
+              <Download className="w-4 h-4 rotate-180" /> Import CSV
+            </button>
+          </div>
           <button onClick={handleExport} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium">
             <Download className="w-4 h-4" /> Export CSV
           </button>
@@ -199,6 +301,7 @@ export default function GateRegister() {
                 <th className="px-4 py-3">Party Name</th>
                 <th className="px-4 py-3">Material Description</th>
                 <th className="px-4 py-3">Quantity & Weight</th>
+                <th className="px-4 py-3">Unit</th>
                 <th className="px-4 py-3">In Time</th>
                 <th className="px-4 py-3">Out Time</th>
                 <th className="px-4 py-3">Invoice No./Value</th>
@@ -215,6 +318,7 @@ export default function GateRegister() {
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{entry.partyName}</td>
                   <td className="px-4 py-3 truncate max-w-xs" title={entry.materialDescription}>{entry.materialDescription}</td>
                   <td className="px-4 py-3">{entry.quantityWeight}</td>
+                  <td className="px-4 py-3">{entry.unit}</td>
                   <td className="px-4 py-3 text-indigo-600 dark:text-indigo-400">{entry.inTime}</td>
                   <td className="px-4 py-3 text-emerald-600 dark:text-emerald-400">{entry.outTime}</td>
                   <td className="px-4 py-3">{entry.invoiceNoValue}</td>
@@ -287,7 +391,17 @@ export default function GateRegister() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Quantity & Weight</label>
-                  <input required type="text" value={formData.quantityWeight} onChange={e => setFormData({...formData, quantityWeight: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
+                  <div className="flex gap-2">
+                    <input required type="text" value={formData.quantityWeight} onChange={e => setFormData({...formData, quantityWeight: e.target.value})} className="flex-1 p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
+                    <select value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} className="w-24 p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700">
+                      <option value="Kgs">Kgs</option>
+                      <option value="Pcs">Pcs</option>
+                      <option value="Box">Box</option>
+                      <option value="Ltr">Ltr</option>
+                      <option value="Ton">Ton</option>
+                      <option value="Bale">Bale</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Invoice No. / Value</label>
@@ -313,7 +427,7 @@ export default function GateRegister() {
               <div className="flex justify-end gap-2 mt-6">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded text-gray-600 dark:text-gray-300">Cancel</button>
                 <button type="submit" disabled={isSyncing} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50">
-                  {isSyncing ? 'Syncing to Sheets...' : 'Save Entry'}
+                  {isSyncing ? 'Saving...' : 'Save Entry'}
                 </button>
               </div>
             </form>

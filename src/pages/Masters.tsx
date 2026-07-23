@@ -1,33 +1,57 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Warehouse, Department } from '../types';
-import { Plus, MapPin, Building, Store, X, FolderTree, Users, Factory, Pencil, Trash2 } from 'lucide-react';
+import { Plus, MapPin, Building, Store, X, FolderTree, Users, Factory, Pencil, Trash2, Package } from 'lucide-react';
+import { CSVUploader } from '../components/CSVUploader';
 
 export default function Masters() {
-  const { warehouses, departments, addWarehouse, updateWarehouse, deleteWarehouse, addDepartment, updateDepartment, deleteDepartment, stock } = useApp();
+    const { items, addItem, warehouses, departments, addWarehouse, updateWarehouse, deleteWarehouse, addDepartment, updateDepartment, deleteDepartment, stock } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<'warehouse' | 'department' | 'company' | 'user'>('warehouse');
-  const [activeTab, setActiveTab] = useState<'departments' | 'warehouses' | 'companies' | 'users'>('departments');
+    const [modalType, setModalType] = useState<'warehouse' | 'department' | 'company' | 'user' | 'item'>('warehouse');
+    const [activeTab, setActiveTab] = useState<'departments' | 'warehouses' | 'companies' | 'users' | 'items'>('departments');
   const [editItem, setEditItem] = useState<any>(null);
+  const handleBulkUpload = async (data: any[]) => {
+    for (const row of data) {
+      if (activeTab === 'departments') {
+        await addDepartment({ name: row.name || '', head: row.head || '', plantId: row.plantId || 'Plant-1' });
+      } else if (activeTab === 'warehouses') {
+        await addWarehouse({ name: row.name || '', type: row.type || 'Warehouse' });
+      } else if (activeTab === 'items') {
+        await addItem({ 
+          name: row.name || '', 
+          sku: row.sku || '', 
+          categoryId: row.categoryId || 'Cat-1', 
+          uom: row.uom || 'Kgs', 
+          reorderLevel: Number(row.reorderLevel) || 10, 
+          type: row.type || 'Raw Material' 
+        });
+      }
+    }
+    alert('Bulk upload completed');
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold">Master Configurations</h1>
-        {(activeTab === 'warehouses' || activeTab === 'departments' || activeTab === 'companies' || activeTab === 'users') && (
+                {(activeTab === 'warehouses' || activeTab === 'departments' || activeTab === 'companies' || activeTab === 'users' || activeTab === 'items') && (
+          <div className="flex gap-2">
+            <CSVUploader onUpload={handleBulkUpload} />
           <button 
             onClick={() => { 
               setEditItem(null);
               if (activeTab === 'warehouses') setModalType('warehouse');
               else if (activeTab === 'departments') setModalType('department');
               else if (activeTab === 'companies') setModalType('company');
-              else if (activeTab === 'users') setModalType('user');
+                            else if (activeTab === 'users') setModalType('user');
+              else if (activeTab === 'items') setModalType('item');
               setIsModalOpen(true); 
             }}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
           >
-            <Plus className="w-5 h-5" /> Add {activeTab === 'warehouses' ? 'Warehouse' : activeTab === 'departments' ? 'Department' : activeTab === 'companies' ? 'Company' : 'User'}
+            <Plus className="w-5 h-5" /> Add {activeTab === 'warehouses' ? 'Warehouse' : activeTab === 'departments' ? 'Department' : activeTab === 'companies' ? 'Company' : activeTab === 'items' ? 'Item' : 'User'}
           </button>
+          </div>
         )}
       </div>
 
@@ -56,8 +80,13 @@ export default function Masters() {
         >
           <Users className="w-4 h-4" /> Users & Roles
         </button>
+              <button
+          onClick={() => setActiveTab('items')}
+          className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-colors border-b-2 ${activeTab === 'items' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+        >
+          <Package className="w-4 h-4" /> Items
+        </button>
       </div>
-
       {activeTab === 'warehouses' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {warehouses.map(wh => {
@@ -224,6 +253,33 @@ export default function Masters() {
         </div>
       )}
 
+            {activeTab === 'items' && (
+        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm text-gray-500">
+              <tr>
+                <th className="p-4">Name</th>
+                <th className="p-4">SKU</th>
+                <th className="p-4">Type</th>
+                <th className="p-4">UoM</th>
+                <th className="p-4">Reorder Lvl</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(item => (
+              <tr key={item.id}>
+                <td className="p-4 font-medium">{item.name}</td>
+                <td className="p-4 text-gray-500">{item.sku}</td>
+                <td className="p-4">{item.type}</td>
+                <td className="p-4">{item.uom}</td>
+                <td className="p-4">{item.reorderLevel}</td>
+              </tr>
+              ))}
+              {items.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-gray-500">No items found</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
       {isModalOpen && (
         <LocationModal 
           type={modalType}
@@ -234,9 +290,12 @@ export default function Masters() {
               if (editItem) updateWarehouse(editItem.id, data);
               else addWarehouse(data);
             }
-            else {
+            else if (modalType === 'department') {
               if (editItem) updateDepartment(editItem.id, data);
               else addDepartment(data);
+            }
+            else if (modalType === 'item') {
+               addItem(data);
             }
             setIsModalOpen(false);
             setEditItem(null);
@@ -247,7 +306,7 @@ export default function Masters() {
   );
 }
 
-function LocationModal({ type, onClose, onSave, initialData }: { type: 'warehouse' | 'department' | 'company' | 'user', onClose: () => void, onSave: (data: any) => void, initialData?: any }) {
+function LocationModal({ type, onClose, onSave, initialData }: { type: 'warehouse' | 'department' | 'company' | 'user' | 'item', onClose: () => void, onSave: (data: any) => void, initialData?: any }) {
   const [formData, setFormData] = useState(
     initialData || (
     type === 'warehouse' ? { name: '', type: 'Warehouse' } :
@@ -265,7 +324,7 @@ function LocationModal({ type, onClose, onSave, initialData }: { type: 'warehous
             {initialData ? `Edit ${type === 'warehouse' ? 'Warehouse' : type === 'department' ? 'Department' : type === 'company' ? 'Company' : 'User'}` :
             type === 'warehouse' ? 'New Warehouse' : 
              type === 'department' ? 'New Department' : 
-             type === 'company' ? 'New Company/Plant' : 'New User'}
+             type === 'company' ? 'New Company/Plant' : type === 'item' ? 'New Item' : 'New User'}
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full"><X className="w-5 h-5" /></button>
         </div>
@@ -301,6 +360,30 @@ function LocationModal({ type, onClose, onSave, initialData }: { type: 'warehous
               <div>
                 <label className="block text-sm font-medium mb-1">Location / Address</label>
                 <input type="text" value={(formData as any).location} onChange={e => setFormData({...formData, location: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+            </>
+          )}
+                    {type === 'item' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">SKU</label>
+                <input type="text" value={(formData as any).sku} onChange={e => setFormData({...formData, sku: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Unit of Measure (UoM)</label>
+                <input type="text" value={(formData as any).uom} onChange={e => setFormData({...formData, uom: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Type</label>
+                <select value={(formData as any).type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none">
+                  <option value="Raw Material">Raw Material</option>
+                  <option value="Consumable">Consumable</option>
+                  <option value="Spare Part">Spare Part</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Reorder Level</label>
+                <input type="number" value={(formData as any).reorderLevel} onChange={e => setFormData({...formData, reorderLevel: Number(e.target.value)})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
               </div>
             </>
           )}

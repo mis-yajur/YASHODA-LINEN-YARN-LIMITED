@@ -65,6 +65,7 @@ export interface GateEntry {
   partyName: string;
   materialDescription: string;
   quantityWeight: string;
+  unit: string;
   invoiceNoValue: string;
   inTime: string;
   outTime: string;
@@ -119,6 +120,8 @@ export interface StockAdjustment {
   status: 'Pending' | 'Approved' | 'Rejected';
 }
 
+import { User } from 'firebase/auth';
+
 export interface AppState {
   scriptUrl?: string;
   departments: Department[];
@@ -135,4 +138,5 @@ export interface AppState {
   stockTransfers: StockTransfer[];
   stockAdjustments: StockAdjustment[];
   isSyncing: boolean;
+  user?: User | null;
 }
