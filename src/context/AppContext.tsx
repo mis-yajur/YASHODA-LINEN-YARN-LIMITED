@@ -18,7 +18,7 @@ const LOCAL_STORAGE_KEY = 'yashoda_inventory_data';
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [state, setState] = useState<AppState>({
-    scriptUrl: localStorage.getItem('yashoda_script_url'),
+    scriptUrl: localStorage.getItem('yashoda_script_url') || 'https://script.google.com/macros/s/AKfycbxhbZpukrSNyJEvK_fAg1VgjBd6pIS9e3T_AvygI1CZaII27ggbhtry4rI_abUtgN0A/exec',
     departments: [],
     suppliers: [],
     items: [],

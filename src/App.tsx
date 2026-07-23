@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { 
   LayoutDashboard, Package, MapPin, Users, ShoppingCart, 
@@ -124,7 +124,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AppProvider>
-      <BrowserRouter>
+      <HashRouter>
         <Layout>
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -139,7 +139,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Layout>
-      </BrowserRouter>
+      </HashRouter>
     </AppProvider>
   );
 }
