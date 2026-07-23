@@ -24,6 +24,9 @@ export default function Inventory() {
     addStockAdjustment,
     gateEntriesYashoda = [],
     gateEntriesAIPL = [],
+    addGateEntry,
+    updateGateEntry,
+    deleteGateEntry,
     receiveStock
   } = useApp();
 
@@ -31,6 +34,7 @@ export default function Inventory() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'item' | 'transfer' | 'adjustment'>('item');
+  const [editingGateEntry, setEditingGateEntry] = useState<any>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Process Yashoda Gate Entries for Inventory Inward Stock and Item Master
@@ -163,9 +167,13 @@ export default function Inventory() {
     alert('Bulk upload completed');
   };
 
-  const filteredItems = (items || []).filter(item => 
-    (item?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (item?.sku || '').toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredYashodaGateItems = yashodaGateEntries.filter(entry =>
+    (entry.materialDescription || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (entry.partyName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (entry.vehicleNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (entry.slNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (entry.gstNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (entry.invoiceNoValue || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredGateSummary = gateInwardStockSummary.filter(summary =>
@@ -175,6 +183,20 @@ export default function Inventory() {
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val);
+  };
+
+  const handleEditYashodaItem = (entry: any) => {
+    setEditingGateEntry(entry);
+    setModalType('item');
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteYashodaItem = async (id: string, description: string) => {
+    if (window.confirm(`Are you sure you want to delete "${description || 'this item'}" from Yashoda Item Master?`)) {
+      if (deleteGateEntry) {
+        await deleteGateEntry(id, 'Yashoda');
+      }
+    }
   };
 
   return (
@@ -200,10 +222,10 @@ export default function Inventory() {
             <div className="flex gap-2">
               <CSVUploader onUpload={handleBulkUpload} />
               <button 
-                onClick={() => { setModalType('item'); setIsModalOpen(true); }}
+                onClick={() => { setEditingGateEntry(null); setModalType('item'); setIsModalOpen(true); }}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium"
               >
-                <Plus className="w-4 h-4" /> Add Item
+                <Plus className="w-4 h-4" /> Add Yashoda Item
               </button>
             </div>
           )}
@@ -227,7 +249,7 @@ export default function Inventory() {
           onClick={() => setActiveTab('items')}
           className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'items' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
         >
-          <Package className="w-4 h-4" /> Item Master ({items.length})
+          <Package className="w-4 h-4 text-indigo-500" /> Yashoda Item Master ({yashodaGateEntries.length})
         </button>
         <button
           onClick={() => setActiveTab('transfers')}
@@ -245,51 +267,107 @@ export default function Inventory() {
 
       {activeTab === 'items' && (
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center gap-4">
+          <div className="p-4 border-b border-gray-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Package className="w-4 h-4 text-indigo-600" />
+                Yashoda Item Master (Gate Entry Register Items)
+              </h2>
+              <p className="text-xs text-gray-500">
+                Captured strictly from Yashoda Linen Yarn Ltd Gate Register entries
+              </p>
+            </div>
+
             <div className="relative max-w-md w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input 
                 type="text" 
-                placeholder="Search by name or SKU..." 
+                placeholder="Search by description, party, vehicle, GST..." 
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800/50 focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800/50 focus:ring-2 focus:ring-indigo-500 outline-none text-xs"
               />
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-100 dark:border-zinc-800 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  <th className="px-6 py-4">Name</th>
-                  <th className="px-6 py-4">SKU</th>
-                  <th className="px-6 py-4">Category</th>
-                  <th className="px-6 py-4">Type</th>
-                  <th className="px-6 py-4 text-right">Reorder Lvl</th>
+            <table className="w-full text-left whitespace-nowrap">
+              <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <tr>
+                  <th className="px-4 py-3">SL. No</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Vehicle No.</th>
+                  <th className="px-4 py-3">Party Name</th>
+                  <th className="px-4 py-3">GST No.</th>
+                  <th className="px-4 py-3">Material Description</th>
+                  <th className="px-4 py-3">Quantity</th>
+                  <th className="px-4 py-3">UOM</th>
+                  <th className="px-4 py-3">RATE/UOM</th>
+                  <th className="px-4 py-3">Base Price</th>
+                  <th className="px-4 py-3">SGST</th>
+                  <th className="px-4 py-3">CGST</th>
+                  <th className="px-4 py-3">IGST</th>
+                  <th className="px-4 py-3">Total Price</th>
+                  <th className="px-4 py-3">e-Way Bill</th>
+                  <th className="px-4 py-3">Invoice No./Value</th>
+                  <th className="px-4 py-3">In Time</th>
+                  <th className="px-4 py-3">Out Time</th>
+                  <th className="px-4 py-3">Driver Licence No.</th>
+                  <th className="px-4 py-3">Contact No./Sign.</th>
+                  <th className="px-4 py-3">Security Sign.</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                {filteredItems.map(item => (
+              <tbody className="divide-y divide-gray-100 dark:divide-zinc-800 text-xs">
+                {filteredYashodaGateItems.map(item => (
                   <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
-                      <div className="text-xs text-gray-500">{item.uom}</div>
+                    <td className="px-4 py-3 font-medium">{item.slNo || '-'}</td>
+                    <td className="px-4 py-3">{item.date || '-'}</td>
+                    <td className="px-4 py-3">{item.vehicleNo || '-'}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{item.partyName || '-'}</td>
+                    <td className="px-4 py-3 font-mono">{item.gstNo || '-'}</td>
+                    <td className="px-4 py-3 font-semibold truncate max-w-[200px]" title={item.materialDescription}>
+                      {item.materialDescription || '-'}
                     </td>
-                    <td className="px-6 py-4 font-mono text-xs">{item.sku}</td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                        {item.categoryId || 'Raw Material'}
-                      </span>
+                    <td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400">{item.quantityWeight || '-'}</td>
+                    <td className="px-4 py-3">{item.unit || '-'}</td>
+                    <td className="px-4 py-3 font-mono">{item.rateUom || '-'}</td>
+                    <td className="px-4 py-3 font-mono">{item.basePrice || '-'}</td>
+                    <td className="px-4 py-3 font-mono">{item.sgst || '-'}</td>
+                    <td className="px-4 py-3 font-mono">{item.cgst || '-'}</td>
+                    <td className="px-4 py-3 font-mono">{item.igst || '-'}</td>
+                    <td className="px-4 py-3 font-bold font-mono text-gray-900 dark:text-white">{item.totalPrice || '-'}</td>
+                    <td className="px-4 py-3 font-mono">{item.ewayBill || '-'}</td>
+                    <td className="px-4 py-3 font-mono">{item.invoiceNoValue || '-'}</td>
+                    <td className="px-4 py-3">{item.inTime || '-'}</td>
+                    <td className="px-4 py-3">{item.outTime || '-'}</td>
+                    <td className="px-4 py-3 font-mono">{item.driverLicenceNo || '-'}</td>
+                    <td className="px-4 py-3">{item.contactNoSign || '-'}</td>
+                    <td className="px-4 py-3">{item.securitySign || '-'}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          onClick={() => handleEditYashodaItem(item)}
+                          className="p-1 text-gray-500 hover:text-indigo-600 transition-colors"
+                          title="Edit Item"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteYashodaItem(item.id, item.materialDescription)}
+                          className="p-1 text-gray-500 hover:text-red-600 transition-colors"
+                          title="Delete Item"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 text-sm">{item.type || 'Raw Material'}</td>
-                    <td className="px-6 py-4 text-right text-gray-500 font-mono">{item.reorderLevel}</td>
                   </tr>
                 ))}
-                {filteredItems.length === 0 && (
+                {filteredYashodaGateItems.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                      No items found in Item Master.
+                    <td colSpan={22} className="px-6 py-8 text-center text-gray-500">
+                      No Yashoda items found in Item Master.
                     </td>
                   </tr>
                 )}
@@ -545,10 +623,31 @@ export default function Inventory() {
       {isModalOpen && (
         <ItemModal 
           type={modalType}
-          onClose={() => setIsModalOpen(false)} 
-          onSave={(data) => {
+          initialData={editingGateEntry}
+          onClose={() => { setIsModalOpen(false); setEditingGateEntry(null); }} 
+          onSave={async (data) => {
             if (modalType === 'item') {
-              addItem(data);
+              if (editingGateEntry && updateGateEntry) {
+                await updateGateEntry(editingGateEntry.id, data, 'Yashoda');
+              } else if (addGateEntry) {
+                await addGateEntry(data, 'Yashoda');
+              }
+              
+              // Ensure item is registered in Item state if name/description provided
+              const itemDesc = data.materialDescription || data.name;
+              if (itemDesc) {
+                const existing = items.find(i => i.name.toLowerCase() === itemDesc.toLowerCase());
+                if (!existing) {
+                  addItem({
+                    name: itemDesc,
+                    sku: `YASH-${Math.floor(1000 + Math.random() * 9000)}`,
+                    categoryId: 'Raw Material',
+                    uom: data.unit || 'Kgs',
+                    type: 'Raw Material',
+                    reorderLevel: 10
+                  });
+                }
+              }
             } else if (modalType === 'transfer') {
               addStockTransfer({
                 fromWarehouseId: data.fromWarehouse,
@@ -569,6 +668,7 @@ export default function Inventory() {
               });
             }
             setIsModalOpen(false);
+            setEditingGateEntry(null);
           }} 
         />
       )}
@@ -576,55 +676,138 @@ export default function Inventory() {
   );
 }
 
-function ItemModal({ type, onClose, onSave }: { type: 'item' | 'transfer' | 'adjustment', onClose: () => void, onSave: (data: any) => void }) {
+function ItemModal({ type, initialData, onClose, onSave }: { type: 'item' | 'transfer' | 'adjustment', initialData?: any, onClose: () => void, onSave: (data: any) => void }) {
   const [formData, setFormData] = useState(
-    type === 'item' ? { name: '', sku: '', categoryId: 'Raw Material', uom: 'kg', type: 'Raw Material', reorderLevel: 0 } :
+    type === 'item' ? {
+      slNo: initialData?.slNo || '',
+      date: initialData?.date || new Date().toISOString().split('T')[0],
+      vehicleNo: initialData?.vehicleNo || '',
+      partyName: initialData?.partyName || '',
+      gstNo: initialData?.gstNo || '',
+      materialDescription: initialData?.materialDescription || '',
+      quantityWeight: initialData?.quantityWeight || '',
+      unit: initialData?.unit || 'Kgs',
+      rateUom: initialData?.rateUom || '',
+      basePrice: initialData?.basePrice || '',
+      sgst: initialData?.sgst || '',
+      cgst: initialData?.cgst || '',
+      igst: initialData?.igst || '',
+      totalPrice: initialData?.totalPrice || '',
+      ewayBill: initialData?.ewayBill || '',
+      invoiceNoValue: initialData?.invoiceNoValue || '',
+      inTime: initialData?.inTime || '',
+      outTime: initialData?.outTime || '',
+      driverLicenceNo: initialData?.driverLicenceNo || '',
+      contactNoSign: initialData?.contactNoSign || '',
+      securitySign: initialData?.securitySign || ''
+    } :
     type === 'transfer' ? { fromWarehouse: '', toWarehouse: '', itemId: '', quantity: 0, reason: '' } :
     { warehouseId: '', itemId: '', quantity: 0, reason: '' }
   );
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-zinc-800">
-          <h2 className="text-lg font-bold">
-            {type === 'item' ? 'New Item' : 
-             type === 'transfer' ? 'New Stock Transfer' : 'New Stock Adjustment'}
-          </h2>
+          <div>
+            <h2 className="text-lg font-bold">
+              {type === 'item' ? (initialData ? 'Edit Yashoda Item' : 'Add Yashoda Item (Gate Register Data)') : 
+               type === 'transfer' ? 'New Stock Transfer' : 'New Stock Adjustment'}
+            </h2>
+            {type === 'item' && (
+              <p className="text-xs text-gray-500">All fields match Yashoda Gate Entry Register</p>
+            )}
+          </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 space-y-4">
           {type === 'item' && (
-            <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div>
-                <label className="block text-sm font-medium mb-1">Item Name</label>
-                <input type="text" value={(formData as any).name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">SKU</label>
-                  <input type="text" value={(formData as any).sku} onChange={e => setFormData({...formData, sku: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">UOM</label>
-                  <input type="text" value={(formData as any).uom} onChange={e => setFormData({...formData, uom: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Category</label>
-                  <input type="text" value={(formData as any).categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Type</label>
-                  <input type="text" value={(formData as any).type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-                </div>
+                <label className="block font-semibold mb-1">SL. No</label>
+                <input type="text" value={(formData as any).slNo} onChange={e => setFormData({...formData, slNo: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Reorder Level</label>
-                <input type="number" value={(formData as any).reorderLevel} onChange={e => setFormData({...formData, reorderLevel: parseInt(e.target.value) || 0})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+                <label className="block font-semibold mb-1">Date</label>
+                <input type="date" value={(formData as any).date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
               </div>
-            </>
+              <div>
+                <label className="block font-semibold mb-1">Vehicle No.</label>
+                <input type="text" value={(formData as any).vehicleNo} onChange={e => setFormData({...formData, vehicleNo: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Party Name</label>
+                <input type="text" value={(formData as any).partyName} onChange={e => setFormData({...formData, partyName: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">GST No.</label>
+                <input type="text" value={(formData as any).gstNo} onChange={e => setFormData({...formData, gstNo: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1 text-indigo-600 dark:text-indigo-400">Material Description *</label>
+                <input type="text" value={(formData as any).materialDescription} onChange={e => setFormData({...formData, materialDescription: e.target.value})} className="w-full p-2 border border-indigo-200 dark:border-indigo-800 rounded-lg bg-indigo-50/30 dark:bg-indigo-950/20 outline-none font-bold" required />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Quantity</label>
+                <input type="text" value={(formData as any).quantityWeight} onChange={e => setFormData({...formData, quantityWeight: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">UOM</label>
+                <input type="text" value={(formData as any).unit} onChange={e => setFormData({...formData, unit: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">RATE/UOM</label>
+                <input type="text" value={(formData as any).rateUom} onChange={e => setFormData({...formData, rateUom: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Base Price</label>
+                <input type="text" value={(formData as any).basePrice} onChange={e => setFormData({...formData, basePrice: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">SGST</label>
+                <input type="text" value={(formData as any).sgst} onChange={e => setFormData({...formData, sgst: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">CGST</label>
+                <input type="text" value={(formData as any).cgst} onChange={e => setFormData({...formData, cgst: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">IGST</label>
+                <input type="text" value={(formData as any).igst} onChange={e => setFormData({...formData, igst: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Total Price</label>
+                <input type="text" value={(formData as any).totalPrice} onChange={e => setFormData({...formData, totalPrice: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">e-Way Bill</label>
+                <input type="text" value={(formData as any).ewayBill} onChange={e => setFormData({...formData, ewayBill: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Invoice No./Value</label>
+                <input type="text" value={(formData as any).invoiceNoValue} onChange={e => setFormData({...formData, invoiceNoValue: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">In Time</label>
+                <input type="text" value={(formData as any).inTime} onChange={e => setFormData({...formData, inTime: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Out Time</label>
+                <input type="text" value={(formData as any).outTime} onChange={e => setFormData({...formData, outTime: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Driver Licence No.</label>
+                <input type="text" value={(formData as any).driverLicenceNo} onChange={e => setFormData({...formData, driverLicenceNo: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Contact No./Sign.</label>
+                <input type="text" value={(formData as any).contactNoSign} onChange={e => setFormData({...formData, contactNoSign: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block font-semibold mb-1">Security Sign.</label>
+                <input type="text" value={(formData as any).securitySign} onChange={e => setFormData({...formData, securitySign: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+            </div>
           )}
           {type === 'transfer' && (
             <>
@@ -652,8 +835,8 @@ function ItemModal({ type, onClose, onSave }: { type: 'item' | 'transfer' | 'adj
           )}
         </div>
         <div className="p-6 border-t border-gray-100 dark:border-zinc-800 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg font-medium transition-colors">Cancel</button>
-          <button onClick={() => onSave(formData)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">Save</button>
+          <button onClick={onClose} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg font-medium transition-colors text-sm">Cancel</button>
+          <button onClick={() => onSave(formData)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors text-sm">Save Item</button>
         </div>
       </div>
     </div>
