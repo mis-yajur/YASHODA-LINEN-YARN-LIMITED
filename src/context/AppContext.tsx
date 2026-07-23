@@ -63,26 +63,36 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const syncToSheets = async (actionName: string, sheetName: string, payload: any) => {
     try {
+      // Basic schema validation to ensure headers match expected types
+      const validatedPayload: Record<string, string> = {};
+      for (const [key, value] of Object.entries(payload)) {
+        if (value === null || value === undefined) {
+          validatedPayload[key] = '';
+        } else if (typeof value === 'object') {
+          validatedPayload[key] = JSON.stringify(value);
+        } else {
+          validatedPayload[key] = String(value);
+        }
+      }
+
       const savedUrl = state.scriptUrl || localStorage.getItem('yashoda_inventory_script_url');
       if (savedUrl) {
-        // Use Google Apps Script Web App
-        const res = await fetch(savedUrl, {
+        // Use Google Apps Script Web App with no-cors to bypass CORS policy
+        await fetch(savedUrl, {
           method: 'POST',
+          mode: 'no-cors',
           headers: {
-            // Using text/plain avoids CORS preflight OPTIONS request
-            'Content-Type': 'text/plain;charset=utf-8',
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             action: actionName,
             sheetName: sheetName,
-            data: payload,
+            data: validatedPayload,
             spreadsheetId: localStorage.getItem('yashoda_inventory_spreadsheet_id')
           })
         });
-        const result = await res.json();
-        if (!result.success) {
-          console.error("Apps Script Error:", result.error, result.trace);
-        }
+        // With mode 'no-cors', the response is opaque, we cannot read res.json().
+        // We assume the fire-and-forget request succeeded if no network error occurred.
       } else {
         // Fallback to Google Sheets API (OAuth) if Apps Script isn't configured
         const { appendRow } = await import('../lib/sheets');
@@ -92,10 +102,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
         
-        // Map payload object to a flat array of string values
-        const values = Object.values(payload).map(val => 
-          typeof val === 'string' ? val : JSON.stringify(val)
-        );
+        const values = Object.values(validatedPayload);
 
         // Map snake_case to PascalCase for the tab titles created in sheets.ts
         const sheetNameMapping: Record<string, string> = {

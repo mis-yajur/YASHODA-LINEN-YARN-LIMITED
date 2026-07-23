@@ -167,6 +167,8 @@ export default function Reports() {
         </div>
       ) : activeCategory === 'inventory' ? (
         <InventoryReportView />
+      ) : activeCategory === 'consumption' ? (
+        <ConsumptionReportView />
       ) : (
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-6">
           <div className="flex justify-between items-center mb-6">
@@ -184,12 +186,6 @@ export default function Reports() {
                 <ReportCard title="Pending GRNs" description="Purchase orders pending goods receipt." />
               </>
             )}
-            {activeCategory === 'consumption' && (
-              <>
-                <ReportCard title="Dept Consumption" description="Material consumed by each department." />
-                <ReportCard title="Issue Register" description="Log of all material issue slips." />
-              </>
-            )}
           </div>
         </div>
       )}
@@ -197,63 +193,136 @@ export default function Reports() {
   );
 }
 
+function ConsumptionReportView() {
+  const { materialIssueItems, items, departments, materialIssues } = useApp();
+
+  const consumptionByDepartment = useMemo(() => {
+    const data: Record<string, number> = {};
+    materialIssueItems.forEach(item => {
+      const issue = materialIssues.find(mi => mi.id === item.issueId);
+      if (!issue) return;
+      const dept = departments.find(d => d.id === issue.departmentId);
+      const deptName = dept ? dept.name : issue.departmentId;
+      data[deptName] = (data[deptName] || 0) + item.quantity;
+    });
+    return Object.entries(data).map(([name, count]) => ({ name, count }));
+  }, [materialIssueItems, materialIssues, departments]);
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800">
+        <h2 className="font-bold text-lg mb-6">Material Consumption by Department</h2>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={consumptionByDepartment} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" opacity={0.2} />
+              <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 12 }} />
+              <YAxis tick={{ fill: '#6B7280', fontSize: 12 }} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#F9FAFB' }}
+                itemStyle={{ color: '#F59E0B' }}
+              />
+              <Bar dataKey="count" name="Quantity Consumed" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InventoryReportView() {
   const { stock, items, warehouses } = useApp();
 
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
-      <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
-        <h2 className="font-bold text-lg">Daily Stock Report</h2>
-        <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg">
-          <Filter className="w-4 h-4" /> Filter Options
-        </button>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm text-gray-500">
-            <tr>
-              <th className="p-4">Item Name</th>
-              <th className="p-4">SKU</th>
-              <th className="p-4">Category</th>
-              <th className="p-4">Warehouse</th>
-              <th className="p-4">Quantity</th>
-              <th className="p-4">Reorder Level</th>
-              <th className="p-4">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stock && stock.map(s => {
-              const item = items.find(i => i.id === s.itemId);
-              const wh = warehouses.find(w => w.id === s.warehouseId);
-              if (!item) return null;
-              
-              const isLowStock = s.quantity <= item.reorderLevel;
+  const lowStockData = useMemo(() => {
+    const data = items.map(item => {
+      const totalStock = stock.filter(s => s.itemId === item.id).reduce((sum, s) => sum + s.quantity, 0);
+      return {
+        name: item.name,
+        stock: totalStock,
+        reorderLevel: item.reorderLevel,
+        isLow: totalStock <= item.reorderLevel
+      };
+    }).filter(d => d.isLow);
+    return data;
+  }, [items, stock]);
 
-              return (
-                <tr key={s.id} className="border-b border-gray-100 dark:border-zinc-800 last:border-0">
-                  <td className="p-4 font-medium">{item.name}</td>
-                  <td className="p-4">{item.sku}</td>
-                  <td className="p-4">{item.type}</td>
-                  <td className="p-4">{wh?.name || 'Unknown'}</td>
-                  <td className="p-4">{s.quantity} {item.uom}</td>
-                  <td className="p-4">{item.reorderLevel} {item.uom}</td>
-                  <td className="p-4">
-                    {isLowStock ? (
-                      <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">Low Stock</span>
-                    ) : (
-                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Healthy</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {(!stock || stock.length === 0) && (
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800">
+        <h2 className="font-bold text-lg mb-6">Low Stock Items Overview</h2>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={lowStockData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" opacity={0.2} />
+              <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 12 }} />
+              <YAxis tick={{ fill: '#6B7280', fontSize: 12 }} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#F9FAFB' }}
+                itemStyle={{ color: '#EF4444' }}
+              />
+              <Legend />
+              <Bar dataKey="stock" name="Current Stock" fill="#EF4444" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="reorderLevel" name="Reorder Level" fill="#E5E7EB" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      
+      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
+        <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
+          <h2 className="font-bold text-lg">Daily Stock Report</h2>
+          <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg">
+            <Filter className="w-4 h-4" /> Filter Options
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm text-gray-500">
               <tr>
-                <td colSpan={7} className="p-8 text-center text-gray-500">No stock data available. Add inventory to view reports.</td>
+                <th className="p-4">Item Name</th>
+                <th className="p-4">SKU</th>
+                <th className="p-4">Category</th>
+                <th className="p-4">Warehouse</th>
+                <th className="p-4">Quantity</th>
+                <th className="p-4">Reorder Level</th>
+                <th className="p-4">Status</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {stock && stock.map(s => {
+                const item = items.find(i => i.id === s.itemId);
+                const wh = warehouses.find(w => w.id === s.warehouseId);
+                if (!item) return null;
+                
+                const isLowStock = s.quantity <= item.reorderLevel;
+
+                return (
+                  <tr key={s.id} className="border-b border-gray-100 dark:border-zinc-800 last:border-0">
+                    <td className="p-4 font-medium">{item.name}</td>
+                    <td className="p-4">{item.sku}</td>
+                    <td className="p-4">{item.type}</td>
+                    <td className="p-4">{wh?.name || 'Unknown'}</td>
+                    <td className="p-4">{s.quantity} {item.uom}</td>
+                    <td className="p-4">{item.reorderLevel} {item.uom}</td>
+                    <td className="p-4">
+                      {isLowStock ? (
+                        <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">Low Stock</span>
+                      ) : (
+                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Healthy</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {(!stock || stock.length === 0) && (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-gray-500">No stock data available. Add inventory to view reports.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
