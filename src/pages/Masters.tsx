@@ -5,10 +5,10 @@ import { Plus, MapPin, Building, Store, X, FolderTree, Users, Factory, Pencil, T
 import { CSVUploader } from '../components/CSVUploader';
 
 export default function Masters() {
-    const { users = [], addUser, updateUser, items = [], addItem, updateItem, deleteItem, warehouses = [], departments = [], addWarehouse, updateWarehouse, deleteWarehouse, addDepartment, updateDepartment, deleteDepartment, stock = [] } = useApp();
+    const { users = [], addUser, updateUser, warehouses = [], departments = [], addWarehouse, updateWarehouse, deleteWarehouse, addDepartment, updateDepartment, deleteDepartment, stock = [] } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalType, setModalType] = useState<'warehouse' | 'department' | 'company' | 'user' | 'item'>('warehouse');
-    const [activeTab, setActiveTab] = useState<'departments' | 'warehouses' | 'companies' | 'users' | 'items'>('departments');
+    const [modalType, setModalType] = useState<'warehouse' | 'department' | 'company' | 'user'>('warehouse');
+    const [activeTab, setActiveTab] = useState<'departments' | 'warehouses' | 'companies' | 'users'>('departments');
   const [editItem, setEditItem] = useState<any>(null);
   const handleBulkUpload = async (data: any[]) => {
     for (const row of data) {
@@ -16,15 +16,6 @@ export default function Masters() {
         await addDepartment({ name: row.name || '', head: row.head || '', plantId: row.plantId || 'Plant-1' });
       } else if (activeTab === 'warehouses') {
         await addWarehouse({ name: row.name || '', type: row.type || 'Warehouse' });
-      } else if (activeTab === 'items') {
-        await addItem({ 
-          name: row.name || '', 
-          sku: row.sku || '', 
-          categoryId: row.categoryId || 'Cat-1', 
-          uom: row.uom || 'Kgs', 
-          reorderLevel: Number(row.reorderLevel) || 10, 
-          type: row.type || 'Raw Material' 
-        });
       }
     }
     alert('Bulk upload completed');
@@ -34,7 +25,7 @@ export default function Masters() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold">Master Configurations</h1>
-                {(activeTab === 'warehouses' || activeTab === 'departments' || activeTab === 'companies' || activeTab === 'users' || activeTab === 'items') && (
+                {(activeTab === 'warehouses' || activeTab === 'departments' || activeTab === 'companies' || activeTab === 'users') && (
           <div className="flex gap-2">
             <CSVUploader onUpload={handleBulkUpload} />
           <button 
@@ -43,13 +34,12 @@ export default function Masters() {
               if (activeTab === 'warehouses') setModalType('warehouse');
               else if (activeTab === 'departments') setModalType('department');
               else if (activeTab === 'companies') setModalType('user');
-                            else if (activeTab === 'users') setModalType('user');
-              else if (activeTab === 'items') setModalType('item');
+              else if (activeTab === 'users') setModalType('user');
               setIsModalOpen(true); 
             }}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
           >
-            <Plus className="w-5 h-5" /> Add {activeTab === 'warehouses' ? 'Warehouse' : activeTab === 'departments' ? 'Department' : activeTab === 'companies' ? 'User' : activeTab === 'items' ? 'Item' : 'User'}
+            <Plus className="w-5 h-5" /> Add {activeTab === 'warehouses' ? 'Warehouse' : activeTab === 'departments' ? 'Department' : activeTab === 'companies' ? 'User' : 'User'}
           </button>
           </div>
         )}
@@ -73,13 +63,6 @@ export default function Masters() {
           className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-colors border-b-2 ${activeTab === 'companies' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
         >
           <Users className="w-4 h-4" /> Users
-        </button>
-        
-              <button
-          onClick={() => setActiveTab('items')}
-          className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-colors border-b-2 ${activeTab === 'items' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-        >
-          <Package className="w-4 h-4" /> Items
         </button>
       </div>
       {activeTab === 'warehouses' && (
@@ -225,59 +208,6 @@ export default function Masters() {
         </div>
       )}
 
-      {activeTab === 'items' && (
-        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm text-gray-500">
-              <tr>
-                <th className="p-4">SKU</th>
-                <th className="p-4">Name</th>
-                <th className="p-4">UOM</th>
-                <th className="p-4">Type</th>
-                <th className="p-4">Reorder Level</th>
-                <th className="p-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(items || []).map(item => (
-                <tr key={item.id} className="border-b border-gray-100 dark:border-zinc-800 last:border-0 hover:bg-gray-50 dark:hover:bg-zinc-800/50">
-                  <td className="p-4 font-mono text-xs">{item.sku}</td>
-                  <td className="p-4 font-medium">{item.name}</td>
-                  <td className="p-4">{item.uom}</td>
-                  <td className="p-4">{item.type || 'Raw Material'}</td>
-                  <td className="p-4">{item.reorderLevel || 0}</td>
-                  <td className="p-4 flex items-center gap-2">
-                    <button 
-                      onClick={() => { setEditItem(item); setModalType('item'); setIsModalOpen(true); }}
-                      className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg flex items-center gap-1 text-sm font-medium transition-colors"
-                      title="Edit Item"
-                    >
-                      <Pencil className="w-4 h-4" /> Edit
-                    </button>
-                    <button 
-                      onClick={() => {
-                        if (window.confirm(`Are you sure you want to delete item "${item.name}"?`)) {
-                          if (deleteItem) deleteItem(item.id);
-                        }
-                      }}
-                      className="text-red-600 hover:text-red-900 dark:text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg flex items-center gap-1 text-sm font-medium transition-colors"
-                      title="Delete Item"
-                    >
-                      <Trash2 className="w-4 h-4" /> Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {(!items || items.length === 0) && (
-                <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">No items configured in Item Master.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
       {isModalOpen && (
         <MasterModal 
           type={modalType}
@@ -294,10 +224,6 @@ export default function Masters() {
             }
             else if (modalType === 'company') {
               // noop
-            }
-            else if (modalType === 'item') {
-              if (editItem && updateItem) await updateItem(editItem.id, data);
-              else await addItem(data);
             }
             else if (modalType === 'user') {
               if (editItem) await updateUser(editItem.id, data);
