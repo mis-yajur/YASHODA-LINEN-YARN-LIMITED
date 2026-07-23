@@ -21,7 +21,6 @@ import MaterialIssue from './pages/MaterialIssue';
 import Approvals from './pages/Approvals';
 import Reports from './pages/Reports';
 import Notifications from './pages/Notifications';
-import Setup from './pages/Setup';
 import GateRegister from './pages/GateRegister';
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -48,7 +47,6 @@ function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Approvals', path: '/approvals', icon: CheckSquare },
     { name: 'Reports', path: '/reports', icon: FileText },
     { name: 'Notifications', path: '/notifications', icon: Bell },
-    { name: 'Setup', path: '/setup', icon: Settings },
   ];
 
   return (
@@ -78,7 +76,11 @@ function Layout({ children }: { children: React.ReactNode }) {
             <Link
               key={item.name}
               to={item.path}
-              onClick={() => setSidebarOpen(false)}
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  setSidebarOpen(false);
+                }
+              }}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
             >
               <item.icon className="w-5 h-5" />
@@ -138,7 +140,6 @@ export default function App() {
             <Route path="/approvals" element={<Approvals />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/notifications" element={<Notifications />} />
-            <Route path="/setup" element={<Setup />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Layout>

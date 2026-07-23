@@ -60,10 +60,10 @@ export default function Approvals() {
                     <td className="px-6 py-4">{req.amount}</td>
                     <td className="px-6 py-4">
                       <div className="flex justify-center gap-2">
-                        <button className="p-1.5 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 rounded">
+                        <button onClick={() => alert('Approved!')} className="p-1.5 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 rounded">
                           <CheckSquare className="w-5 h-5" />
                         </button>
-                        <button className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded">
+                        <button onClick={() => alert('Rejected!')} className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded">
                           <XSquare className="w-5 h-5" />
                         </button>
                       </div>

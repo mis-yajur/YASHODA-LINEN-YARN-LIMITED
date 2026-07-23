@@ -177,7 +177,7 @@ export default function MaterialIssue() {
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
           <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
             <h2 className="font-bold text-lg">Material Requisitions</h2>
-            <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm">
+            <button onClick={() => alert('New Requisition feature coming soon!')} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm">
               <Plus className="w-4 h-4" /> New Requisition
             </button>
           </div>
@@ -203,7 +203,7 @@ export default function MaterialIssue() {
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
           <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
             <h2 className="font-bold text-lg">Material Returns</h2>
-            <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm">
+            <button onClick={() => alert('Process Return feature coming soon!')} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm">
               <Plus className="w-4 h-4" /> Process Return
             </button>
           </div>

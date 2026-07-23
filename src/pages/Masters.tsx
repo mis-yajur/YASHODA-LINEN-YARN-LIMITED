@@ -6,19 +6,25 @@ import { Plus, MapPin, Building, Store, X, FolderTree, Users, Factory } from 'lu
 export default function Masters() {
   const { warehouses, departments, addWarehouse, addDepartment, stock } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<'warehouse' | 'department'>('warehouse');
+  const [modalType, setModalType] = useState<'warehouse' | 'department' | 'company' | 'user'>('warehouse');
   const [activeTab, setActiveTab] = useState<'departments' | 'warehouses' | 'companies' | 'users'>('departments');
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold">Master Configurations</h1>
-        {(activeTab === 'warehouses' || activeTab === 'departments') && (
+        {(activeTab === 'warehouses' || activeTab === 'departments' || activeTab === 'companies' || activeTab === 'users') && (
           <button 
-            onClick={() => { setModalType(activeTab === 'warehouses' ? 'warehouse' : 'department'); setIsModalOpen(true); }}
+            onClick={() => { 
+              if (activeTab === 'warehouses') setModalType('warehouse');
+              else if (activeTab === 'departments') setModalType('department');
+              else if (activeTab === 'companies') setModalType('company');
+              else if (activeTab === 'users') setModalType('user');
+              setIsModalOpen(true); 
+            }}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
           >
-            <Plus className="w-5 h-5" /> Add {activeTab === 'warehouses' ? 'Warehouse' : 'Department'}
+            <Plus className="w-5 h-5" /> Add {activeTab === 'warehouses' ? 'Warehouse' : activeTab === 'departments' ? 'Department' : activeTab === 'companies' ? 'Company' : 'User'}
           </button>
         )}
       </div>
@@ -116,7 +122,10 @@ export default function Masters() {
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
           <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
             <h2 className="font-bold text-lg">Companies & Plants</h2>
-            <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm">
+            <button 
+              onClick={() => { setModalType('company'); setIsModalOpen(true); }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
+            >
               <Plus className="w-4 h-4" /> Add Company/Plant
             </button>
           </div>
@@ -148,7 +157,10 @@ export default function Masters() {
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
           <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
             <h2 className="font-bold text-lg">Users & Roles</h2>
-            <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm">
+            <button 
+              onClick={() => { setModalType('user'); setIsModalOpen(true); }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
+            >
               <Plus className="w-4 h-4" /> Add User
             </button>
           </div>
@@ -191,18 +203,23 @@ export default function Masters() {
   );
 }
 
-function LocationModal({ type, onClose, onSave }: { type: 'warehouse' | 'department', onClose: () => void, onSave: (data: any) => void }) {
+function LocationModal({ type, onClose, onSave }: { type: 'warehouse' | 'department' | 'company' | 'user', onClose: () => void, onSave: (data: any) => void }) {
   const [formData, setFormData] = useState(
-    type === 'warehouse' 
-      ? { name: '', type: 'Warehouse' }
-      : { name: '', head: '', plantId: 'Plant-1' }
+    type === 'warehouse' ? { name: '', type: 'Warehouse' } :
+    type === 'department' ? { name: '', head: '', plantId: 'Plant-1' } :
+    type === 'company' ? { name: '', type: 'Company', location: '' } :
+    { name: '', email: '', role: 'User', status: 'Active' }
   );
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-zinc-800">
-          <h2 className="text-lg font-bold">{type === 'warehouse' ? 'New Warehouse' : 'New Department'}</h2>
+          <h2 className="text-lg font-bold">
+            {type === 'warehouse' ? 'New Warehouse' : 
+             type === 'department' ? 'New Department' : 
+             type === 'company' ? 'New Company/Plant' : 'New User'}
+          </h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 space-y-4">
@@ -210,7 +227,7 @@ function LocationModal({ type, onClose, onSave }: { type: 'warehouse' | 'departm
             <label className="block text-sm font-medium mb-1">Name</label>
             <input type="text" value={(formData as any).name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
           </div>
-          {type === 'warehouse' ? (
+          {type === 'warehouse' && (
             <div>
               <label className="block text-sm font-medium mb-1">Type</label>
               <select value={(formData as any).type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none">
@@ -218,11 +235,43 @@ function LocationModal({ type, onClose, onSave }: { type: 'warehouse' | 'departm
                 <option value="Store">Store</option>
               </select>
             </div>
-          ) : (
+          )}
+          {type === 'department' && (
             <div>
               <label className="block text-sm font-medium mb-1">Department Head</label>
               <input type="text" value={(formData as any).head} onChange={e => setFormData({...formData, head: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
             </div>
+          )}
+          {type === 'company' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">Type</label>
+                <select value={(formData as any).type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none">
+                  <option value="Company">Company</option>
+                  <option value="Plant">Plant</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Location / Address</label>
+                <input type="text" value={(formData as any).location} onChange={e => setFormData({...formData, location: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+            </>
+          )}
+          {type === 'user' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">Email</label>
+                <input type="email" value={(formData as any).email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Role</label>
+                <select value={(formData as any).role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none">
+                  <option value="Administrator">Administrator</option>
+                  <option value="Manager">Manager</option>
+                  <option value="User">User</option>
+                </select>
+              </div>
+            </>
           )}
         </div>
         <div className="p-6 border-t border-gray-100 dark:border-zinc-800 flex justify-end gap-3">

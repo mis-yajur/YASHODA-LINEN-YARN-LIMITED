@@ -8,6 +8,7 @@ export default function Inventory() {
   const [activeTab, setActiveTab] = useState<'items' | 'stock' | 'transfers' | 'adjustments'>('stock');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<'item' | 'transfer' | 'adjustment'>('item');
 
   const filteredItems = items.filter(item => 
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -20,7 +21,7 @@ export default function Inventory() {
         <h1 className="text-2xl font-bold">Inventory Management</h1>
         {activeTab === 'items' && (
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => { setModalType('item'); setIsModalOpen(true); }}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
           >
             <Plus className="w-5 h-5" /> Add Item
@@ -160,7 +161,10 @@ export default function Inventory() {
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
           <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
             <h2 className="font-bold text-lg">Stock Transfers</h2>
-            <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm">
+            <button 
+              onClick={() => { setModalType('transfer'); setIsModalOpen(true); }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
+            >
               <Plus className="w-4 h-4" /> New Transfer
             </button>
           </div>
@@ -187,7 +191,10 @@ export default function Inventory() {
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
           <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
             <h2 className="font-bold text-lg">Stock Adjustments</h2>
-            <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm">
+            <button 
+              onClick={() => { setModalType('adjustment'); setIsModalOpen(true); }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
+            >
               <Plus className="w-4 h-4" /> New Adjustment
             </button>
           </div>
@@ -212,9 +219,14 @@ export default function Inventory() {
 
       {isModalOpen && (
         <ItemModal 
+          type={modalType}
           onClose={() => setIsModalOpen(false)} 
           onSave={(data) => {
-            addItem(data);
+            if (modalType === 'item') {
+              addItem(data);
+            } else {
+              alert('Saved successfully!');
+            }
             setIsModalOpen(false);
           }} 
         />
@@ -223,51 +235,84 @@ export default function Inventory() {
   );
 }
 
-function ItemModal({ onClose, onSave }: { onClose: () => void, onSave: (data: any) => void }) {
-  const [formData, setFormData] = useState({
-    name: '', sku: '', categoryId: 'Raw Material', uom: 'kg', type: 'Raw Material', reorderLevel: 0
-  });
+function ItemModal({ type, onClose, onSave }: { type: 'item' | 'transfer' | 'adjustment', onClose: () => void, onSave: (data: any) => void }) {
+  const [formData, setFormData] = useState(
+    type === 'item' ? { name: '', sku: '', categoryId: 'Raw Material', uom: 'kg', type: 'Raw Material', reorderLevel: 0 } :
+    type === 'transfer' ? { fromWarehouse: '', toWarehouse: '', itemId: '', quantity: 0, reason: '' } :
+    { warehouseId: '', itemId: '', quantity: 0, reason: '' }
+  );
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-zinc-800">
-          <h2 className="text-lg font-bold">New Item</h2>
+          <h2 className="text-lg font-bold">
+            {type === 'item' ? 'New Item' : 
+             type === 'transfer' ? 'New Stock Transfer' : 'New Stock Adjustment'}
+          </h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Item Name</label>
-            <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">SKU</label>
-              <input type="text" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">UOM</label>
-              <input type="text" value={formData.uom} onChange={e => setFormData({...formData, uom: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Category</label>
-              <input type="text" value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Type</label>
-              <input type="text" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Reorder Level</label>
-            <input type="number" value={formData.reorderLevel} onChange={e => setFormData({...formData, reorderLevel: parseInt(e.target.value) || 0})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-          </div>
+          {type === 'item' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">Item Name</label>
+                <input type="text" value={(formData as any).name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">SKU</label>
+                  <input type="text" value={(formData as any).sku} onChange={e => setFormData({...formData, sku: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">UOM</label>
+                  <input type="text" value={(formData as any).uom} onChange={e => setFormData({...formData, uom: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Category</label>
+                  <input type="text" value={(formData as any).categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Type</label>
+                  <input type="text" value={(formData as any).type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Reorder Level</label>
+                <input type="number" value={(formData as any).reorderLevel} onChange={e => setFormData({...formData, reorderLevel: parseInt(e.target.value) || 0})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+            </>
+          )}
+          {type === 'transfer' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">Item ID</label>
+                <input type="text" value={(formData as any).itemId} onChange={e => setFormData({...formData, itemId: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Quantity</label>
+                <input type="number" value={(formData as any).quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value) || 0})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+            </>
+          )}
+          {type === 'adjustment' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">Item ID</label>
+                <input type="text" value={(formData as any).itemId} onChange={e => setFormData({...formData, itemId: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Quantity Adjustment</label>
+                <input type="number" value={(formData as any).quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value) || 0})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+              </div>
+            </>
+          )}
         </div>
         <div className="p-6 border-t border-gray-100 dark:border-zinc-800 flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg font-medium transition-colors">Cancel</button>
-          <button onClick={() => onSave(formData)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">Save Item</button>
+          <button onClick={() => onSave(formData)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">Save</button>
         </div>
       </div>
     </div>
