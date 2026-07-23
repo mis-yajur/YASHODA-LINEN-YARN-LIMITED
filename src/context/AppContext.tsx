@@ -77,12 +77,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       const savedUrl = state.scriptUrl || localStorage.getItem('yashoda_inventory_script_url');
       if (savedUrl) {
-        // Use Google Apps Script Web App with no-cors to bypass CORS policy
-        await fetch(savedUrl, {
+        // Use Google Apps Script Web App
+        const res = await fetch(savedUrl, {
           method: 'POST',
-          mode: 'no-cors',
           headers: {
-            'Content-Type': 'application/json',
+            // Using text/plain avoids CORS preflight OPTIONS request
+            'Content-Type': 'text/plain;charset=utf-8',
           },
           body: JSON.stringify({
             action: actionName,
@@ -91,8 +91,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             spreadsheetId: localStorage.getItem('yashoda_inventory_spreadsheet_id')
           })
         });
-        // With mode 'no-cors', the response is opaque, we cannot read res.json().
-        // We assume the fire-and-forget request succeeded if no network error occurred.
+        const result = await res.json();
+        if (!result.success) {
+          console.error("Apps Script Error:", result.error, result.trace);
+        }
       } else {
         // Fallback to Google Sheets API (OAuth) if Apps Script isn't configured
         const { appendRow } = await import('../lib/sheets');
