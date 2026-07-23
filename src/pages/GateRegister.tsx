@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn } from 'lucide-react';
+import { Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn, Edit, Trash2, MoreVertical } from 'lucide-react';
 import { CSVUploader } from '../components/CSVUploader';
 import { GateEntry } from '../types';
 
 
 
 export default function GateRegister() {
-  const { gateEntries, addGateEntry } = useApp();
+  const { gateEntries, addGateEntry, updateGateEntry, deleteGateEntry, clearAllGateEntries } = useApp();
+  const [editId, setEditId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [companyType, setCompanyType] = useState<'AIPL' | 'Yashoda'>('Yashoda');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -156,6 +157,39 @@ export default function GateRegister() {
     reader.readAsText(file);
   };
 
+  const handleEdit = (entry: GateEntry) => {
+    setFormData({
+      date: entry.date || '',
+      vehicleNo: entry.vehicleNo || '',
+      partyName: entry.partyName || '',
+      gstNo: entry.gstNo || '',
+      materialDescription: entry.materialDescription || '',
+      quantityWeight: entry.quantityWeight || '',
+      unit: entry.unit || 'Kgs',
+      rateUom: entry.rateUom || '',
+      basePrice: entry.basePrice || '',
+      sgst: entry.sgst || '',
+      cgst: entry.cgst || '',
+      igst: entry.igst || '',
+      totalPrice: entry.totalPrice || '',
+      ewayBill: entry.ewayBill || '',
+      inTime: entry.inTime || '',
+      outTime: entry.outTime || '',
+      invoiceNoValue: entry.invoiceNoValue || '',
+      driverLicenceNo: entry.driverLicenceNo || '',
+      contactNoSign: entry.contactNoSign || '',
+      securitySign: entry.securitySign || ''
+    });
+    setEditId(entry.id);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Are you sure you want to delete this entry?')) {
+      await deleteGateEntry(id);
+    }
+  };
+
   const handleExport = () => {
     const headers = ['SL', 'Date', 'Vehicle No.', 'Party Name', 'GST No.', 'Material Description', 'Quantity', 'UOM', 'RATE/UOM', 'Base Price', 'SGST', 'CGST', 'IGST', 'Total Price', 'e-Way Bill', 'Invoice No./Value', 'In Time', 'Out Time', 'Driver Licence No.', 'Contact No./Sign.', 'Security Sign.'];
     const csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + '\n' + filteredEntries.map(e => 
@@ -173,19 +207,15 @@ export default function GateRegister() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // if (needsAuth) {
-    //   alert("Please sign in to Google to sync gate entries.");
-    //   return;
-    // }
-
-    
     try {
-      const slNo = (allEntries.length + 1).toString();
-      
-      // Save locally and sync (AppContext handles sync to sheets now)
-      await addGateEntry({ ...formData, slNo, companyType });
-
+      if (editId) {
+        await updateGateEntry(editId, { ...formData });
+      } else {
+        const slNo = (allEntries.length + 1).toString();
+        await addGateEntry({ ...formData, slNo, companyType });
+      }
       setIsModalOpen(false);
+      setEditId(null);
       setFormData({
         date: new Date().toISOString().split('T')[0],
         vehicleNo: '',
@@ -218,6 +248,22 @@ export default function GateRegister() {
     }
   };
 
+  
+  const hasGstNo = currentEntries.some(e => e.gstNo);
+  const hasRateUom = currentEntries.some(e => e.rateUom);
+  const hasBasePrice = currentEntries.some(e => e.basePrice);
+  const hasSgst = currentEntries.some(e => e.sgst);
+  const hasCgst = currentEntries.some(e => e.cgst);
+  const hasIgst = currentEntries.some(e => e.igst);
+  const hasTotalPrice = currentEntries.some(e => e.totalPrice);
+  const hasEwayBill = currentEntries.some(e => e.ewayBill);
+  const hasInvoiceNoValue = currentEntries.some(e => e.invoiceNoValue);
+  const hasInTime = currentEntries.some(e => e.inTime);
+  const hasOutTime = currentEntries.some(e => e.outTime);
+  const hasDriverLicenceNo = currentEntries.some(e => e.driverLicenceNo);
+  const hasContactNoSign = currentEntries.some(e => e.contactNoSign);
+  const hasSecuritySign = currentEntries.some(e => e.securitySign);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -240,8 +286,11 @@ export default function GateRegister() {
           <button onClick={handleExport} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium">
             <Download className="w-4 h-4" /> Export CSV
           </button>
-          <button onClick={() => setIsModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
+          <button onClick={() => { setEditId(null); setIsModalOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
             <Plus className="w-4 h-4" /> New Entry
+          </button>
+          <button onClick={async () => { if (confirm('Delete ALL Gate Entries? This cannot be undone.')) await clearAllGateEntries(); }} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
+            <X className="w-4 h-4" /> Delete All
           </button>
         </div>
       </div>
@@ -285,53 +334,72 @@ export default function GateRegister() {
           <table className="w-full text-left whitespace-nowrap">
             <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm font-medium text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="px-4 py-3">SL</th>
+                <th className="px-4 py-3">SL. No</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Vehicle No.</th>
                 <th className="px-4 py-3">Party Name</th>
-                <th className="px-4 py-3">GST No.</th>
+                {companyType === 'AIPL' && hasGstNo && <th className="px-4 py-3">GST No.</th>}
                 <th className="px-4 py-3">Material Description</th>
                 <th className="px-4 py-3">Quantity</th>
                 <th className="px-4 py-3">UOM</th>
-                <th className="px-4 py-3">RATE/UOM</th>
-                    <th className="px-4 py-3">Base Price</th>
-                    <th className="px-4 py-3">SGST</th>
-                    <th className="px-4 py-3">CGST</th>
-                    <th className="px-4 py-3">IGST</th>
-                    <th className="px-4 py-3">Total Price</th>
-                    <th className="px-4 py-3">e-Way Bill</th>
-                <th className="px-4 py-3">Invoice No./Value</th>
-                <th className="px-4 py-3">In Time</th>
-                <th className="px-4 py-3">Out Time</th>
-                <th className="px-4 py-3">Driver Licence No.</th>
-                <th className="px-4 py-3">Contact No./Sign.</th>
-                <th className="px-4 py-3">Security Sign.</th>
+                {companyType === 'AIPL' && (
+                  <>
+                    {hasRateUom && <th className="px-4 py-3">RATE/UOM</th>}
+                    {hasBasePrice && <th className="px-4 py-3">Base Price</th>}
+                    {hasSgst && <th className="px-4 py-3">SGST</th>}
+                    {hasCgst && <th className="px-4 py-3">CGST</th>}
+                    {hasIgst && <th className="px-4 py-3">IGST</th>}
+                    {hasTotalPrice && <th className="px-4 py-3">Total Price</th>}
+                    {hasEwayBill && <th className="px-4 py-3">e-Way Bill</th>}
+                  </>
+                )}
+                {hasInvoiceNoValue && <th className="px-4 py-3">Invoice No./Value</th>}
+                {hasInTime && <th className="px-4 py-3">In Time</th>}
+                {hasOutTime && <th className="px-4 py-3">Out Time</th>}
+                {hasDriverLicenceNo && <th className="px-4 py-3">Driver Licence No.</th>}
+                {hasContactNoSign && <th className="px-4 py-3">Contact No./Sign.</th>}
+                {hasSecuritySign && <th className="px-4 py-3">Security Sign.</th>}
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-zinc-800 text-sm">
               {currentEntries.map((entry, idx) => (
-                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50">
+                <tr key={idx} onDoubleClick={() => handleEdit(entry)} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors group">
                   <td className="px-4 py-3 font-medium">{entry.slNo}</td>
                   <td className="px-4 py-3">{entry.date}</td>
                   <td className="px-4 py-3">{entry.vehicleNo || '-'}</td>
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{entry.partyName}</td>
-                  <td className="px-4 py-3">{entry.gstNo || '-'}</td>
+                  {companyType === 'AIPL' && hasGstNo && <td className="px-4 py-3">{entry.gstNo || '-'}</td>}
                   <td className="px-4 py-3 truncate max-w-[200px]" title={entry.materialDescription}>{entry.materialDescription}</td>
                   <td className="px-4 py-3">{entry.quantityWeight}</td>
                   <td className="px-4 py-3">{entry.unit}</td>
-                  <td className="px-4 py-3">{entry.rateUom || '-'}</td>
-                      <td className="px-4 py-3">{entry.basePrice || '-'}</td>
-                      <td className="px-4 py-3">{entry.sgst || '-'}</td>
-                      <td className="px-4 py-3">{entry.cgst || '-'}</td>
-                      <td className="px-4 py-3">{entry.igst || '-'}</td>
-                      <td className="px-4 py-3">{entry.totalPrice || '-'}</td>
-                      <td className="px-4 py-3">{entry.ewayBill || '-'}</td>
-                  <td className="px-4 py-3">{entry.invoiceNoValue || '-'}</td>
-                  <td className="px-4 py-3">{entry.inTime || '-'}</td>
-                  <td className="px-4 py-3">{entry.outTime || '-'}</td>
-                  <td className="px-4 py-3">{entry.driverLicenceNo || '-'}</td>
-                  <td className="px-4 py-3">{entry.contactNoSign || '-'}</td>
-                  <td className="px-4 py-3">{entry.securitySign || '-'}</td>
+                  {companyType === 'AIPL' && (
+                    <>
+                      {hasRateUom && <td className="px-4 py-3">{entry.rateUom || '-'}</td>}
+                      {hasBasePrice && <td className="px-4 py-3">{entry.basePrice || '-'}</td>}
+                      {hasSgst && <td className="px-4 py-3">{entry.sgst || '-'}</td>}
+                      {hasCgst && <td className="px-4 py-3">{entry.cgst || '-'}</td>}
+                      {hasIgst && <td className="px-4 py-3">{entry.igst || '-'}</td>}
+                      {hasTotalPrice && <td className="px-4 py-3">{entry.totalPrice || '-'}</td>}
+                      {hasEwayBill && <td className="px-4 py-3">{entry.ewayBill || '-'}</td>}
+                    </>
+                  )}
+                  {hasInvoiceNoValue && <td className="px-4 py-3">{entry.invoiceNoValue || '-'}</td>}
+                  {hasInTime && <td className="px-4 py-3">{entry.inTime || '-'}</td>}
+                  {hasOutTime && <td className="px-4 py-3">{entry.outTime || '-'}</td>}
+                  {hasDriverLicenceNo && <td className="px-4 py-3">{entry.driverLicenceNo || '-'}</td>}
+                  {hasContactNoSign && <td className="px-4 py-3">{entry.contactNoSign || '-'}</td>}
+                  {hasSecuritySign && <td className="px-4 py-3">{entry.securitySign || '-'}</td>}
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={(e) => { e.stopPropagation(); handleEdit(entry); }} className="p-1 text-gray-500 hover:text-indigo-600 transition-colors" title="Edit">
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }} className="p-1 text-gray-500 hover:text-red-600 transition-colors" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {currentEntries.length === 0 && (
@@ -375,8 +443,8 @@ export default function GateRegister() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-zinc-800">
-              <h2 className="text-xl font-bold">New Gate Entry</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-gray-700">
+              <h2 className="text-xl font-bold">{editId ? 'Edit Gate Entry' : 'New Gate Entry'}</h2>
+              <button onClick={() => { setIsModalOpen(false); setEditId(null); }} className="text-gray-500 hover:text-gray-700">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -470,9 +538,9 @@ export default function GateRegister() {
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-6">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded text-gray-600 dark:text-gray-300">Cancel</button>
+                <button type="button" onClick={() => { setIsModalOpen(false); setEditId(null); }} className="px-4 py-2 border rounded text-gray-600 dark:text-gray-300">Cancel</button>
                 <button type="submit"  className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50">
-                  {'Save Entry'}
+                  {editId ? 'Update Entry' : 'Save Entry'}
                 </button>
               </div>
             </form>

@@ -1,107 +1,94 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Package, MapPin, Users, AlertTriangle, ArrowRightLeft, LayoutDashboard, Database, ShoppingCart, CheckSquare, FileText, Bell } from 'lucide-react';
+import { Package, IndianRupee, ArrowRightLeft, TrendingUp } from 'lucide-react';
 
 export default function Dashboard() {
-  const [selectedUnit, setSelectedUnit] = React.useState<string>('All');
+  const { stock, items, materialIssues, gateEntries } = useApp();
 
-  const { items, stock, materialIssues, warehouses, suppliers } = useApp();
+  // Metrics
+  const currentStock = stock.reduce((sum, item) => sum + item.quantity, 0);
+  
+  // Mocking stock value for now since we don't have price on Item
+  const stockValue = stock.reduce((sum, item) => sum + (item.quantity * 150), 0); 
 
-  const totalItems = items.length;
-  const totalStockValue = stock.reduce((sum, item) => sum + item.quantity, 0); // Simplified value as quantity for now
-  const lowStockItems = items.filter(item => {
-    const itemStock = stock.filter(i => i.itemId === item.id).reduce((sum, i) => sum + i.quantity, 0);
-    return itemStock < item.reorderLevel;
-  });
+  // This month transactions (Gate Entries + Material Issues)
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  
+  const thisMonthIssues = materialIssues.filter(m => {
+    const d = new Date(m.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  }).length;
+  
+  const thisMonthGate = gateEntries.filter(g => {
+    const d = new Date(g.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  }).length;
+  
+  const thisMonthTransactions = thisMonthIssues + thisMonthGate;
 
-  const recentIssues = [...materialIssues].reverse().slice(0, 5);
+  // Top 10 High Value Items (using quantity * mock price)
+  const top10Items = useMemo(() => {
+    const itemTotals = items.map(item => {
+      const itemStock = stock.filter(s => s.itemId === item.id).reduce((sum, s) => sum + s.quantity, 0);
+      return {
+        name: item.name || 'Unknown',
+        value: itemStock * 150, // mock price
+        quantity: itemStock
+      };
+    });
+    
+    return itemTotals.sort((a, b) => b.value - a.value).slice(0, 10);
+  }, [items, stock]);
 
-  const stockByWarehouse = warehouses.map(w => {
-    const wStock = stock.filter(i => i.warehouseId === w.id);
-    return {
-      name: w.name,
-      value: wStock.reduce((sum, i) => sum + i.quantity, 0)
-    };
-  });
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <select value={selectedUnit} onChange={e => setSelectedUnit(e.target.value)} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 px-4 py-2 rounded-lg">
-          <option value="All">All Units</option>
-          {Array.from(new Set([...warehouses.map(w => w.name), 'Yashoda', 'AIPL'])).map(u => (
-            <option key={u} value={u}>{u}</option>
-          ))}
-        </select>
       </div>
       
-      
-      <div className="pt-4">
-        <h2 className="text-xl font-bold mb-4">Modules</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          <MenuCard title="Dashboard" icon={LayoutDashboard} path="/" color="bg-indigo-500" />
-          <MenuCard title="Masters" icon={Database} path="/masters" color="bg-blue-500" />
-          <MenuCard title="Gate Entry" icon={MapPin} path="/gate" color="bg-emerald-500" />
-          <MenuCard title="Procurement" icon={ShoppingCart} path="/procurement" color="bg-amber-500" />
-          <MenuCard title="Inventory" icon={Package} path="/inventory" color="bg-orange-500" />
-          <MenuCard title="Material Issue" icon={ArrowRightLeft} path="/issue" color="bg-pink-500" />
-          <MenuCard title="Approvals" icon={CheckSquare} path="/approvals" color="bg-purple-500" />
-          <MenuCard title="Reports & Notifications" icon={FileText} path="/reports" color="bg-rose-500" />
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Items (Master)" value={totalItems} icon={Package} color="bg-blue-500" />
-        <StatCard title="Total Stock Qty" value={totalStockValue} icon={MapPin} color="bg-emerald-500" />
-        <StatCard title="Suppliers" value={suppliers.length} icon={Users} color="bg-purple-500" />
-        <StatCard title="Low Stock Alerts" value={lowStockItems.length} icon={AlertTriangle} color="bg-red-500" />
+        <StatCard title="Current Stock Qty" value={currentStock.toLocaleString()} icon={Package} color="bg-blue-500" />
+        <StatCard title="Stock Value (Est)" value={formatCurrency(stockValue)} icon={IndianRupee} color="bg-emerald-500" />
+        <StatCard title="This Month Trans." value={thisMonthTransactions.toString()} icon={ArrowRightLeft} color="bg-purple-500" />
+        <StatCard title="Active Items" value={items.length.toString()} icon={TrendingUp} color="bg-amber-500" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
         <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800">
-          <h2 className="text-lg font-bold mb-4">Stock by Warehouse</h2>
-          <div className="h-64">
-            {stockByWarehouse.length > 0 ? (
+          <h2 className="text-lg font-bold mb-4">Top 10 High Value Items (Stock)</h2>
+          <div className="h-80">
+            {top10Items.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stockByWarehouse}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <BarChart data={top10Items} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="name" 
+                    angle={-45} 
+                    textAnchor="end"
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                    interval={0}
+                    height={60}
+                  />
+                  <YAxis 
+                    tickFormatter={(val) => `₹${(val / 1000)}k`}
+                    tick={{ fill: '#6b7280', fontSize: 12 }}
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => [formatCurrency(value), 'Value']}
+                    cursor={{ fill: 'transparent' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={40} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center text-gray-400">No stock data available</div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800">
-          <h2 className="text-lg font-bold mb-4">Recent Material Issues</h2>
-          <div className="space-y-4">
-            {recentIssues.length > 0 ? recentIssues.map(issue => (
-              <div key={issue.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg">
-                    <ArrowRightLeft className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">Issue to Dept: {issue.departmentId}</p>
-                    <p className="text-xs text-gray-500">{new Date(issue.date).toLocaleDateString()}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="inline-block px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-600 text-xs font-medium rounded">
-                    {issue.status}
-                  </span>
-                </div>
-              </div>
-            )) : (
-              <div className="text-center text-gray-400 py-8">No recent material issues</div>
             )}
           </div>
         </div>
@@ -110,7 +97,7 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ title, value, icon: Icon, color }: { title: string, value: number, icon: any, color: string }) {
+function StatCard({ title, value, icon: Icon, color }: { title: string, value: string, icon: any, color: string }) {
   return (
     <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 flex items-center gap-4">
       <div className={`p-4 rounded-xl text-white ${color}`}>
@@ -121,16 +108,5 @@ function StatCard({ title, value, icon: Icon, color }: { title: string, value: n
         <p className="text-2xl font-bold">{value}</p>
       </div>
     </div>
-  );
-}
-
-function MenuCard({ title, icon: Icon, path, color }: { title: string, icon: any, path: string, color: string }) {
-  return (
-    <Link to={path} className="bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 flex flex-col items-center justify-center gap-4 hover:shadow-md transition-shadow hover:border-indigo-100 dark:hover:border-indigo-900 group">
-      <div className={`p-4 rounded-xl text-white ${color} group-hover:scale-110 transition-transform`}>
-        <Icon className="w-8 h-8" />
-      </div>
-      <p className="font-bold text-gray-800 dark:text-gray-100 text-center">{title}</p>
-    </Link>
   );
 }

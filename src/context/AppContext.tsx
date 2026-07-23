@@ -34,7 +34,10 @@ interface AppContextType extends AppState {
   updateWarehouse: (id: string, data: Partial<Warehouse>) => Promise<void>;
   deleteWarehouse: (id: string) => Promise<void>;
   addSupplier: (sup: Omit<Supplier, 'id'>) => Promise<void>;
-  addGateEntry: (entry: Omit<GateEntry, 'id'>) => Promise<void>;
+    addGateEntry: (entry: Omit<GateEntry, 'id'>) => Promise<void>;
+  updateGateEntry: (id: string, data: Partial<GateEntry>) => Promise<void>;
+  deleteGateEntry: (id: string) => Promise<void>;
+  clearAllGateEntries: () => Promise<void>;
   addPR: (pr: Omit<PurchaseRequisition, 'id'>) => Promise<void>;
   addPO: (po: Omit<PurchaseOrder, 'id'>) => Promise<void>;
   addGRN: (grn: Omit<GRN, 'id'>) => Promise<void>;
@@ -188,7 +191,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const updateWarehouse = async (id: string, data: Partial<Warehouse>) => firestoreUpdate('warehouses', id, data);
   const deleteWarehouse = async (id: string) => firestoreDelete('warehouses', id);
   const addSupplier = async (sup: Omit<Supplier, 'id'>) => firestoreAdd('suppliers', sup);
-  const addGateEntry = async (entry: Omit<GateEntry, 'id'>) => firestoreAdd('gateEntries', entry);
+    const addGateEntry = async (entry: Omit<GateEntry, 'id'>) => firestoreAdd('gateEntries', entry);
+  const updateGateEntry = async (id: string, data: Partial<GateEntry>) => firestoreUpdate('gateEntries', id, data);
+  const deleteGateEntry = async (id: string) => firestoreDelete('gateEntries', id);
+  const clearAllGateEntries = async () => {
+    const querySnapshot = await getDocs(collection(db, 'gateEntries'));
+    const batch = writeBatch(db);
+    querySnapshot.forEach((docSnap) => {
+      batch.delete(doc(db, 'gateEntries', docSnap.id));
+    });
+    await batch.commit();
+  };
   const addPR = async (pr: Omit<PurchaseRequisition, 'id'>) => firestoreAdd('prs', pr);
   const addPO = async (po: Omit<PurchaseOrder, 'id'>) => firestoreAdd('pos', po);
   const addGRN = async (grn: Omit<GRN, 'id'>) => firestoreAdd('grns', grn);
@@ -258,7 +271,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     updateWarehouse,
     deleteWarehouse,
     addSupplier,
-    addGateEntry,
+        addGateEntry,
+    updateGateEntry,
+    deleteGateEntry,
+    clearAllGateEntries,
     addPR,
     addPO,
     addGRN,
