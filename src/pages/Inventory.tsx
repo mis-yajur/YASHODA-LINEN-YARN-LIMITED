@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Item } from '../types';
 import { Plus, Search, Edit2, Trash2, X, Package, ArrowRightLeft, Settings2, RefreshCw, Truck, CheckCircle2, IndianRupee } from 'lucide-react';
 import { CSVUploader } from '../components/CSVUploader';
+import { convertUnitQuantity } from '../lib/utils';
 
 function parseNumeric(val: string | number | undefined): number {
   if (val === undefined || val === null) return 0;
@@ -205,21 +206,24 @@ export default function Inventory() {
     (materialIssueItems || []).forEach(mi => {
       const matchedItem = items.find(i => i.id === mi.itemId);
       const key = matchedItem ? matchedItem.name.trim().toLowerCase() : String(mi.itemId).trim().toLowerCase();
-      const qty = Number(mi.quantity) || 0;
+      const rawQty = Number(mi.quantity) || 0;
+      const targetUom = map[key]?.uom || matchedItem?.uom || 'Kgs';
+      const issueUom = mi.unit || matchedItem?.uom || targetUom;
+      const convertedQty = convertUnitQuantity(rawQty, issueUom, targetUom);
 
       if (map[key]) {
-        map[key].issuedQty += qty;
+        map[key].issuedQty += convertedQty;
       } else {
         const name = matchedItem ? matchedItem.name : String(mi.itemId);
         map[key] = {
           key,
           itemName: name,
           sku: matchedItem?.sku || 'SKU-OUT',
-          uom: matchedItem?.uom || 'Kgs',
+          uom: targetUom,
           category: 'Issued Material',
           warehouse: 'Production Store',
           inwardQty: 0,
-          issuedQty: qty,
+          issuedQty: convertedQty,
           currentStock: 0,
           avgRate: 100,
           totalValue: 0,

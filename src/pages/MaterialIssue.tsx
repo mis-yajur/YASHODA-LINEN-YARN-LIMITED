@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowRightLeft, Search, Plus, Trash2, FileText, ArrowLeftRight, History, Printer, Eye, Building2, User, Calendar, CheckCircle2, Package, X } from 'lucide-react';
+import { ArrowRightLeft, Search, Plus, Trash2, FileText, ArrowLeftRight, History, Printer, Eye, Building2, User, Calendar, CheckCircle2, Package, X, Scale } from 'lucide-react';
+import { convertUnitQuantity } from '../lib/utils';
 
 export default function MaterialIssue() {
   const { departments = [], items = [], stock = [], materialIssues = [], materialIssueItems = [], issueMaterial } = useApp();
@@ -10,20 +11,47 @@ export default function MaterialIssue() {
   const [issuedBy, setIssuedBy] = useState('');
   const [receivedBy, setReceivedBy] = useState('');
   
-  const [issueItems, setIssueItems] = useState<{itemId: string, quantity: number}[]>([]);
+  const [issueItems, setIssueItems] = useState<{itemId: string, quantity: number, unit?: string}[]>([]);
   const [selectedItem, setSelectedItem] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [issueUnit, setIssueUnit] = useState('Kgs');
 
   // History & Filter state
   const [historySearch, setHistorySearch] = useState('');
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
   const [selectedIssueDetail, setSelectedIssueDetail] = useState<any>(null);
 
+  const handleSelectItemChange = (itemId: string) => {
+    setSelectedItem(itemId);
+    const matched = items.find(i => i.id === itemId);
+    if (matched?.uom) {
+      setIssueUnit(matched.uom);
+    } else {
+      setIssueUnit('Kgs');
+    }
+  };
+
+  const selectedItemObj = useMemo(() => {
+    return items.find(i => i.id === selectedItem);
+  }, [items, selectedItem]);
+
+  const convertedQuantityPreview = useMemo(() => {
+    if (!selectedItemObj) return null;
+    const targetUom = selectedItemObj.uom || 'Kgs';
+    const converted = convertUnitQuantity(quantity, issueUnit, targetUom);
+    return {
+      converted,
+      targetUom,
+      isDifferent: issueUnit.trim().toUpperCase() !== targetUom.trim().toUpperCase()
+    };
+  }, [selectedItemObj, quantity, issueUnit]);
+
   const handleAddItem = () => {
     if (!selectedItem || quantity <= 0) return;
-    setIssueItems([...issueItems, { itemId: selectedItem, quantity }]);
+    setIssueItems([...issueItems, { itemId: selectedItem, quantity, unit: issueUnit }]);
     setSelectedItem('');
     setQuantity(1);
+    setIssueUnit('Kgs');
   };
 
   const handleRemoveItem = (index: number) => {
@@ -157,28 +185,58 @@ export default function MaterialIssue() {
             <div className="border-t border-gray-100 dark:border-zinc-800 pt-6">
               <h3 className="text-base font-bold mb-4 text-gray-900 dark:text-white">Items to Issue from Store</h3>
               
-              <div className="flex flex-col sm:flex-row gap-4 items-end mb-6 bg-gray-50 dark:bg-zinc-800/50 p-4 rounded-xl">
-                <div className="flex-1 w-full">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Select Material / Item</label>
-                  <select value={selectedItem} onChange={e => setSelectedItem(e.target.value)} className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 text-xs outline-none">
-                    <option value="">Search & Select Item...</option>
-                    {(items || []).map(item => {
-                      const currentStock = (stock || []).filter(s => s.itemId === item.id).reduce((sum, s) => sum + (s.quantity || 0), 0);
-                      return (
-                        <option key={item.id} value={item.id}>
-                          {item.name} ({item.sku}) - Current Stock: {currentStock} {item.uom || 'Kgs'}
-                        </option>
-                      )
-                    })}
-                  </select>
+              <div className="space-y-3 bg-gray-50 dark:bg-zinc-800/50 p-4 rounded-xl mb-6">
+                <div className="flex flex-col sm:flex-row gap-4 items-end">
+                  <div className="flex-1 w-full">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Select Material / Item</label>
+                    <select value={selectedItem} onChange={e => handleSelectItemChange(e.target.value)} className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 text-xs outline-none font-medium">
+                      <option value="">Search & Select Item...</option>
+                      {(items || []).map(item => {
+                        const currentStock = (stock || []).filter(s => s.itemId === item.id).reduce((sum, s) => sum + (s.quantity || 0), 0);
+                        return (
+                          <option key={item.id} value={item.id}>
+                            {item.name} ({item.sku}) - Base UOM: {item.uom || 'Kgs'}
+                          </option>
+                        )
+                      })}
+                    </select>
+                  </div>
+                  <div className="w-full sm:w-28">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Quantity</label>
+                    <input type="number" step="any" min="0.001" value={quantity} onChange={e => setQuantity(parseFloat(e.target.value) || 0)} className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 text-xs outline-none font-bold" />
+                  </div>
+                  <div className="w-full sm:w-32">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Issue Unit</label>
+                    <select value={issueUnit} onChange={e => setIssueUnit(e.target.value)} className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 text-xs outline-none font-bold text-indigo-600 dark:text-indigo-400">
+                      <option value="Kgs">Kgs</option>
+                      <option value="TON">TON</option>
+                      <option value="MT">MT</option>
+                      <option value="Quintal">Quintal</option>
+                      <option value="Grams">Grams</option>
+                      <option value="Mtrs">Mtrs</option>
+                      <option value="Pcs">Pcs</option>
+                      <option value="Bags">Bags</option>
+                      <option value="Nos">Nos</option>
+                    </select>
+                  </div>
+                  <button type="button" onClick={handleAddItem} className="w-full sm:w-auto bg-gray-900 hover:bg-black dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all">
+                    + Add Item
+                  </button>
                 </div>
-                <div className="w-full sm:w-36">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Quantity</label>
-                  <input type="number" min="1" value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 1)} className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 text-xs outline-none" />
-                </div>
-                <button type="button" onClick={handleAddItem} className="w-full sm:w-auto bg-gray-900 hover:bg-black dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all">
-                  + Add Item
-                </button>
+
+                {convertedQuantityPreview && (
+                  <div className="flex items-center gap-2 text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50">
+                    <Scale className="w-4 h-4 shrink-0" />
+                    <span>
+                      <strong>Unit Calculation:</strong> Issuing <strong>{quantity} {issueUnit}</strong>
+                      {convertedQuantityPreview.isDifferent ? (
+                        <span> ➔ Automatically converts to <strong className="underline text-indigo-700 dark:text-indigo-300">{convertedQuantityPreview.converted.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {convertedQuantityPreview.targetUom}</strong> deducted from inventory stock.</span>
+                      ) : (
+                        <span> ➔ Deducts <strong>{convertedQuantityPreview.converted.toLocaleString('en-IN')} {convertedQuantityPreview.targetUom}</strong> directly from inventory stock.</span>
+                      )}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl overflow-hidden">
@@ -187,18 +245,25 @@ export default function MaterialIssue() {
                     <tr>
                       <th className="p-3">Item Name</th>
                       <th className="p-3">SKU</th>
-                      <th className="p-3">Quantity to Issue</th>
+                      <th className="p-3">Quantity Issued</th>
+                      <th className="p-3">Inventory Stock Deduction</th>
                       <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
                     {issueItems.map((issueItem, idx) => {
                       const item = items.find(i => i.id === issueItem.itemId);
+                      const unit = issueItem.unit || item?.uom || 'Kgs';
+                      const targetUom = item?.uom || 'Kgs';
+                      const converted = convertUnitQuantity(issueItem.quantity, unit, targetUom);
                       return (
                         <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50">
                           <td className="p-3 font-semibold text-gray-900 dark:text-white">{item?.name || issueItem.itemId}</td>
                           <td className="p-3 font-mono text-gray-500">{item?.sku || '-'}</td>
-                          <td className="p-3 font-bold text-amber-600 dark:text-amber-400">{issueItem.quantity} {item?.uom || 'Kgs'}</td>
+                          <td className="p-3 font-bold text-amber-600 dark:text-amber-400">{issueItem.quantity} {unit}</td>
+                          <td className="p-3 font-bold text-indigo-600 dark:text-indigo-400">
+                            -{converted.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {targetUom}
+                          </td>
                           <td className="p-3 text-right">
                             <button type="button" onClick={() => handleRemoveItem(idx)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-1.5 rounded-lg">
                               <Trash2 className="w-4 h-4" />
@@ -209,7 +274,7 @@ export default function MaterialIssue() {
                     })}
                     {issueItems.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="p-8 text-center text-gray-500">No items added to this issue voucher yet. Select an item above and click "+ Add Item".</td>
+                        <td colSpan={5} className="p-8 text-center text-gray-500">No items added to this issue voucher yet. Select an item above and click "+ Add Item".</td>
                       </tr>
                     )}
                   </tbody>
@@ -337,9 +402,14 @@ export default function MaterialIssue() {
                             issue.items.map((item: any, idx: number) => {
                               const matchedItem = items.find(it => it.id === item.itemId);
                               const name = matchedItem ? matchedItem.name : item.itemId;
+                              const unit = item.unit || matchedItem?.uom || 'Kgs';
+                              const targetUom = matchedItem?.uom || 'Kgs';
+                              const converted = convertUnitQuantity(item.quantity, unit, targetUom);
+                              const isDiff = unit.trim().toUpperCase() !== targetUom.trim().toUpperCase();
                               return (
                                 <span key={idx} className="bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 px-2 py-0.5 rounded text-[10px] font-semibold">
-                                  {name}: {item.quantity} {matchedItem?.uom || ''}
+                                  {name}: {item.quantity} {unit}
+                                  {isDiff && ` (${converted.toLocaleString('en-IN', { maximumFractionDigits: 2 })} ${targetUom} deducted)`}
                                 </span>
                               );
                             })
@@ -477,17 +547,24 @@ export default function MaterialIssue() {
                     <tr>
                       <th className="p-3">Item Name</th>
                       <th className="p-3">SKU</th>
-                      <th className="p-3 text-right">Quantity Issued</th>
+                      <th className="p-3">Quantity Issued</th>
+                      <th className="p-3 text-right">Inventory Stock Deduction</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
                     {selectedIssueDetail.items && selectedIssueDetail.items.map((it: any, i: number) => {
                       const matchedItem = items.find(m => m.id === it.itemId);
+                      const unit = it.unit || matchedItem?.uom || 'Kgs';
+                      const targetUom = matchedItem?.uom || 'Kgs';
+                      const converted = convertUnitQuantity(it.quantity, unit, targetUom);
                       return (
                         <tr key={i}>
                           <td className="p-3 font-semibold">{matchedItem?.name || it.itemId}</td>
                           <td className="p-3 font-mono text-gray-500">{matchedItem?.sku || '-'}</td>
-                          <td className="p-3 text-right font-bold text-amber-600">{it.quantity} {matchedItem?.uom || ''}</td>
+                          <td className="p-3 font-bold text-amber-600">{it.quantity} {unit}</td>
+                          <td className="p-3 text-right font-bold text-indigo-600 dark:text-indigo-400">
+                            -{converted.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {targetUom}
+                          </td>
                         </tr>
                       );
                     })}

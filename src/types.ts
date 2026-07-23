@@ -54,6 +54,7 @@ export interface MaterialIssueItem {
   issueId: string;
   itemId: string;
   quantity: number;
+  unit?: string;
 }
 
 export interface GateEntry {
