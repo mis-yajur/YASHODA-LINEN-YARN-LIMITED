@@ -93,6 +93,14 @@ export default function Inventory() {
       if (entry.date) map[key].lastDate = entry.date;
     });
 
+    // Round total values cleanly to prevent float precision issues (e.g., .619999999999)
+    Object.values(map).forEach(item => {
+      item.totalQty = Math.round((item.totalQty + Number.EPSILON) * 100) / 100;
+      item.totalBasePrice = Math.round((item.totalBasePrice + Number.EPSILON) * 100) / 100;
+      item.totalGST = Math.round((item.totalGST + Number.EPSILON) * 100) / 100;
+      item.totalValue = Math.round((item.totalValue + Number.EPSILON) * 100) / 100;
+    });
+
     return Object.values(map);
   }, [yashodaGateEntries]);
 
@@ -115,7 +123,7 @@ export default function Inventory() {
       sources: string[];
     }> = {};
 
-    // 1. Process Gate Register Inward entries
+    // 1. Process Yashoda Gate Register Inward entries primarily
     const allGate = [
       ...(gateEntriesYashoda || []).map(e => ({ ...e, company: 'Yashoda' })),
       ...(gateEntriesAIPL || []).map(e => ({ ...e, company: 'AIPL' }))
@@ -225,10 +233,13 @@ export default function Inventory() {
       }
     });
 
-    // 4. Calculate Net Current Available Stock & Total Valuation
+    // 4. Calculate Net Current Available Stock & Total Valuation with clean rounding
     Object.values(map).forEach(item => {
-      item.currentStock = Math.max(0, item.inwardQty - item.issuedQty);
-      item.totalValue = item.currentStock * (item.avgRate || 0);
+      item.inwardQty = Math.round((item.inwardQty + Number.EPSILON) * 100) / 100;
+      item.issuedQty = Math.round((item.issuedQty + Number.EPSILON) * 100) / 100;
+      item.currentStock = Math.round((Math.max(0, item.inwardQty - item.issuedQty) + Number.EPSILON) * 100) / 100;
+      item.avgRate = Math.round((item.avgRate + Number.EPSILON) * 100) / 100;
+      item.totalValue = Math.round((item.currentStock * (item.avgRate || 0) + Number.EPSILON) * 100) / 100;
       item.isLow = item.currentStock <= item.reorderLevel;
     });
 
@@ -598,7 +609,7 @@ export default function Inventory() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                      {sum.totalQty.toLocaleString()} {sum.unit}
+                      {sum.totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {sum.unit}
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
                       {formatCurrency(sum.totalBasePrice)}
@@ -720,13 +731,13 @@ export default function Inventory() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
-                        +{st.inwardQty.toLocaleString()} {st.uom}
+                        +{st.inwardQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {st.uom}
                       </td>
                       <td className="px-4 py-3 text-right font-semibold text-amber-600 dark:text-amber-400">
-                        -{st.issuedQty.toLocaleString()} {st.uom}
+                        -{st.issuedQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {st.uom}
                       </td>
                       <td className="px-4 py-3 text-right font-black text-sm text-gray-900 dark:text-white">
-                        {st.currentStock.toLocaleString()} {st.uom}
+                        {st.currentStock.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {st.uom}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-300">
                         {formatCurrency(st.avgRate)} / {st.uom}

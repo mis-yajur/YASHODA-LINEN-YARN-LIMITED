@@ -2,7 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { 
   FileText, Download, Filter, BarChart2, Truck, TrendingUp, 
   Package, ShoppingCart, Layers, AlertTriangle, CheckCircle2, 
-  Calendar, RefreshCw, Sparkles, Building2, User, ArrowUpRight
+  Calendar, RefreshCw, Sparkles, Building2, User, ArrowUpRight,
+  Eye, Printer, Search, X, ChevronRight, CheckCircle, Clock,
+  Building, Phone, Mail, Award, CheckSquare
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
@@ -580,103 +582,687 @@ function InventoryReportView({ items, stock, warehouses }: { items: any[]; stock
 
 /* ================= PROCUREMENT REPORTS VIEW ================= */
 function ProcurementReportView({ prs, pos, grns, suppliers }: { prs: any[]; pos: any[]; grns: any[]; suppliers: any[] }) {
-  const poValueByStatus = useMemo(() => {
-    const map: Record<string, number> = { Approved: 0, Pending: 0, Rejected: 0 };
+  const [activeReport, setActiveReport] = useState<'purchaseRegister' | 'supplierAnalysis' | 'pendingGRNs'>('purchaseRegister');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedPO, setSelectedPO] = useState<any | null>(null);
+  const [selectedSupplier, setSelectedSupplier] = useState<any | null>(null);
+
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val || 0);
+  };
+
+  // 1. Purchase Register Data
+  const filteredPOs = useMemo(() => {
+    return (pos || []).filter(po => {
+      const matchesSearch = 
+        String(po.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(po.supplierName || po.supplierId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(po.itemDescription || po.notes || '').toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const poStatus = po.status || 'Approved';
+      const matchesStatus = statusFilter === 'ALL' || poStatus.toLowerCase() === statusFilter.toLowerCase();
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [pos, searchTerm, statusFilter]);
+
+  const poStats = useMemo(() => {
+    let totalVal = 0;
+    let approvedVal = 0;
+    let pendingVal = 0;
+    let approvedCount = 0;
+
     (pos || []).forEach(p => {
-      const status = p.status || 'Pending';
-      map[status] = (map[status] || 0) + (Number(p.totalAmount) || 0);
+      const amt = Number(p.totalAmount) || 0;
+      totalVal += amt;
+      if (p.status === 'Approved' || p.status === 'Completed' || !p.status) {
+        approvedVal += amt;
+        approvedCount++;
+      } else if (p.status === 'Pending') {
+        pendingVal += amt;
+      }
     });
-    return Object.entries(map).map(([status, amount]) => ({ status, amount }));
+
+    return { totalVal, approvedVal, pendingVal, approvedCount, totalCount: (pos || []).length };
   }, [pos]);
 
-  const prStatusDist = useMemo(() => {
-    const map: Record<string, number> = {};
-    (prs || []).forEach(p => {
-      const st = p.status || 'Pending';
-      map[st] = (map[st] || 0) + 1;
-    });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [prs]);
+  // 2. Supplier Analysis Data
+  const supplierAnalysisData = useMemo(() => {
+    return (suppliers || []).map(sup => {
+      const supPOs = (pos || []).filter(p => p.supplierId === sup.id || p.supplierName === sup.name);
+      const totalSpend = supPOs.reduce((sum, p) => sum + (Number(p.totalAmount) || 0), 0);
+      const completedGRNs = (grns || []).filter(g => supPOs.some(p => p.id === g.poId)).length;
+      const pendingGRNs = Math.max(0, supPOs.length - completedGRNs);
 
-  const totalPoValue = useMemo(() => {
-    return (pos || []).reduce((sum, p) => sum + (Number(p.totalAmount) || 0), 0);
-  }, [pos]);
+      return {
+        ...sup,
+        poCount: supPOs.length,
+        totalSpend,
+        completedGRNs,
+        pendingGRNs,
+        pos: supPOs,
+        statusLabel: totalSpend > 100000 ? 'Preferred Vendor' : totalSpend > 0 ? 'Active Supplier' : 'Inactive'
+      };
+    }).filter(s => 
+      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.contactName && s.contactName.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  }, [suppliers, pos, grns, searchTerm]);
+
+  // Supplier Spend Chart
+  const supplierSpendChartData = useMemo(() => {
+    return supplierAnalysisData
+      .map(s => ({ name: s.name.length > 15 ? s.name.substring(0, 15) + '...' : s.name, spend: s.totalSpend }))
+      .sort((a, b) => b.spend - a.spend)
+      .slice(0, 6);
+  }, [supplierAnalysisData]);
+
+  // 3. Pending GRNs Data
+  const pendingGRNsData = useMemo(() => {
+    return (pos || []).map(po => {
+      const relatedGRNs = (grns || []).filter(g => g.poId === po.id);
+      const receivedQty = relatedGRNs.reduce((sum, g) => sum + (Number(g.receivedQuantity) || 0), 0);
+      const orderedQty = Number(po.quantity) || 100;
+      const pendingQty = Math.max(0, orderedQty - receivedQty);
+      const isPending = pendingQty > 0 || relatedGRNs.length === 0;
+
+      return {
+        ...po,
+        orderedQty,
+        receivedQty,
+        pendingQty,
+        isPending,
+        pendingValue: Math.round((pendingQty / (orderedQty || 1)) * (Number(po.totalAmount) || 0))
+      };
+    }).filter(p => p.isPending).filter(p => 
+      String(p.id).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(p.supplierName || p.supplierId).toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [pos, grns, searchTerm]);
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total PRs</div>
-          <div className="text-2xl font-black text-gray-900 dark:text-white mt-1">{prs.length}</div>
-          <div className="text-[10px] text-gray-400 mt-1">Purchase Requisitions</div>
-        </div>
-
-        <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total POs Generated</div>
-          <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">{pos.length}</div>
-          <div className="text-[10px] text-gray-400 mt-1">Purchase Orders</div>
-        </div>
-
-        <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Procurement Value</div>
-          <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-            ₹{totalPoValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+      {/* Cards Header: Available Reports (Matching Screenshot 2) */}
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-gray-100 dark:border-zinc-800 shadow-sm space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <ShoppingCart className="w-5 h-5 text-indigo-600" /> Available Procurement Reports
+          </h2>
+          <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 dark:bg-zinc-800 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-zinc-700">
+            <Filter className="w-3.5 h-3.5" /> Filter Options
           </div>
-          <div className="text-[10px] text-gray-400 mt-1">Value of generated POs</div>
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">GRNs Logged</div>
-          <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1">{grns.length}</div>
-          <div className="text-[10px] text-gray-400 mt-1">Goods Receipt Notes</div>
+        {/* 3 Main Report Cards as seen in user screenshot */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button
+            onClick={() => { setActiveReport('purchaseRegister'); setSearchTerm(''); }}
+            className={`p-5 rounded-2xl border text-left transition-all flex flex-col justify-between group ${
+              activeReport === 'purchaseRegister'
+                ? 'border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/20 shadow-md ring-2 ring-indigo-500/20'
+                : 'border-gray-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className={`p-2.5 rounded-xl ${activeReport === 'purchaseRegister' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 dark:bg-zinc-800 text-indigo-600'}`}>
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-gray-900 dark:text-white group-hover:text-indigo-600 transition-colors">
+                  Purchase Register
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-snug">
+                  Summary of all POs generated in a period.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-zinc-800/80 flex justify-between items-center text-[11px] font-semibold text-indigo-600">
+              <span>{pos.length} Purchase Orders</span>
+              <ChevronRight className="w-4 h-4" />
+            </div>
+          </button>
+
+          <button
+            onClick={() => { setActiveReport('supplierAnalysis'); setSearchTerm(''); }}
+            className={`p-5 rounded-2xl border text-left transition-all flex flex-col justify-between group ${
+              activeReport === 'supplierAnalysis'
+                ? 'border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/20 shadow-md ring-2 ring-indigo-500/20'
+                : 'border-gray-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className={`p-2.5 rounded-xl ${activeReport === 'supplierAnalysis' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 dark:bg-zinc-800 text-indigo-600'}`}>
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-gray-900 dark:text-white group-hover:text-indigo-600 transition-colors">
+                  Supplier Analysis
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-snug">
+                  Supplier performance and purchase history.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-zinc-800/80 flex justify-between items-center text-[11px] font-semibold text-indigo-600">
+              <span>{suppliers.length} Vendors Tracked</span>
+              <ChevronRight className="w-4 h-4" />
+            </div>
+          </button>
+
+          <button
+            onClick={() => { setActiveReport('pendingGRNs'); setSearchTerm(''); }}
+            className={`p-5 rounded-2xl border text-left transition-all flex flex-col justify-between group ${
+              activeReport === 'pendingGRNs'
+                ? 'border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/20 shadow-md ring-2 ring-indigo-500/20'
+                : 'border-gray-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className={`p-2.5 rounded-xl ${activeReport === 'pendingGRNs' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 dark:bg-zinc-800 text-indigo-600'}`}>
+                <CheckSquare className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-gray-900 dark:text-white group-hover:text-indigo-600 transition-colors">
+                  Pending GRNs
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-snug">
+                  Purchase orders pending goods receipt.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-zinc-800/80 flex justify-between items-center text-[11px] font-semibold text-indigo-600">
+              <span>{pendingGRNsData.length} Orders Awaiting GRN</span>
+              <ChevronRight className="w-4 h-4" />
+            </div>
+          </button>
         </div>
       </div>
 
-      {/* Procurement Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-800">
-          <h2 className="font-bold text-base text-gray-900 dark:text-white mb-1">Purchase Order Value by Status</h2>
-          <p className="text-xs text-gray-500 mb-6">Financial breakdown of POs</p>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={poValueByStatus}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" opacity={0.15} />
-                <XAxis dataKey="status" tick={{ fill: '#6B7280', fontSize: 11 }} />
-                <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} />
-                <Tooltip contentStyle={{ backgroundColor: '#18181B', borderColor: '#27272A', borderRadius: '12px', color: '#FFF' }} />
-                <Bar dataKey="amount" name="PO Amount (₹)" fill="#10B981" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+      {/* SUB-REPORT 1: PURCHASE REGISTER REPORT */}
+      {activeReport === 'purchaseRegister' && (
+        <div className="space-y-6">
+          {/* KPI Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+              <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Generated POs</div>
+              <div className="text-xl font-black text-gray-900 dark:text-white mt-1">{poStats.totalCount}</div>
+              <div className="text-[10px] text-gray-400 mt-1">Total purchase orders issued</div>
+            </div>
 
-        <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-800">
-          <h2 className="font-bold text-base text-gray-900 dark:text-white mb-1">PR Approval Status Distribution</h2>
-          <p className="text-xs text-gray-500 mb-4">Requisitions Workflow Health</p>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={prStatusDist}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={85}
-                  paddingAngle={5}
-                  dataKey="value"
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+              <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Purchase Value</div>
+              <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+                {formatCurrency(poStats.totalVal)}
+              </div>
+              <div className="text-[10px] text-gray-400 mt-1">Gross committed value</div>
+            </div>
+
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+              <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Approved PO Value</div>
+              <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                {formatCurrency(poStats.approvedVal)}
+              </div>
+              <div className="text-[10px] text-emerald-600 font-medium mt-1">{poStats.approvedCount} Approved POs</div>
+            </div>
+
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+              <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Pending Approval Value</div>
+              <div className="text-xl font-black text-amber-500 mt-1">
+                {formatCurrency(poStats.pendingVal)}
+              </div>
+              <div className="text-[10px] text-amber-600 font-medium mt-1">Awaiting sign-off</div>
+            </div>
+          </div>
+
+          {/* Interactive Data Table */}
+          <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h3 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-indigo-600" /> Purchase Register Summary
+                </h3>
+                <p className="text-xs text-gray-500">Period summary of purchase orders generated across suppliers</p>
+              </div>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="relative flex-1 sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search PO #, supplier, item..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 text-xs outline-none"
+                  />
+                </div>
+
+                <select
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 text-xs font-medium outline-none"
                 >
-                  {prStatusDist.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#18181B', borderColor: '#27272A', borderRadius: '12px', color: '#FFF' }} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+                  <option value="ALL">All Statuses</option>
+                  <option value="Approved">Approved</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border border-gray-200 dark:border-zinc-800 rounded-xl">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3">PO Number</th>
+                    <th className="px-4 py-3">PO Date</th>
+                    <th className="px-4 py-3">Supplier Name</th>
+                    <th className="px-4 py-3">Item Description</th>
+                    <th className="px-4 py-3 text-right">Quantity</th>
+                    <th className="px-4 py-3 text-right">Total PO Value</th>
+                    <th className="px-4 py-3 text-center">Status</th>
+                    <th className="px-4 py-3 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                  {filteredPOs.map((po, idx) => {
+                    const sup = suppliers.find(s => s.id === po.supplierId);
+                    return (
+                      <tr key={po.id || idx} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                        <td className="px-4 py-3 font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                          {po.poNumber || po.id}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                          {po.date ? new Date(po.date).toLocaleDateString('en-IN') : 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">
+                          {sup?.name || po.supplierName || po.supplierId || 'Main Supplier'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                          {po.itemDescription || 'Raw Cotton / Linen Goods'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono">
+                          {po.quantity || '100'} {po.unit || 'Kgs'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white font-mono">
+                          {formatCurrency(Number(po.totalAmount) || 0)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            po.status === 'Approved' || !po.status ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40' :
+                            po.status === 'Pending' ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40' :
+                            'bg-red-50 text-red-600 dark:bg-red-950/40'
+                          }`}>
+                            {po.status || 'Approved'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => setSelectedPO(po)}
+                            className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold inline-flex items-center gap-1 bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 rounded-lg"
+                          >
+                            <Eye className="w-3.5 h-3.5" /> View Voucher
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredPOs.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                        No purchase orders match your search criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* SUB-REPORT 2: SUPPLIER ANALYSIS REPORT */}
+      {activeReport === 'supplierAnalysis' && (
+        <div className="space-y-6">
+          {/* Supplier Spend Visual Chart */}
+          <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+            <h3 className="font-bold text-base text-gray-900 dark:text-white mb-1">Top Supplier Purchase Spend Distribution</h3>
+            <p className="text-xs text-gray-500 mb-6">Financial volume allocated per supplier vendor</p>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={supplierSpendChartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" opacity={0.15} />
+                  <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#18181B', borderColor: '#27272A', borderRadius: '12px', color: '#FFF' }} />
+                  <Bar dataKey="spend" name="Total Spend (₹)" fill="#6366F1" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Supplier Analysis Table */}
+          <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h3 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-indigo-600" /> Supplier Performance & History Matrix
+                </h3>
+                <p className="text-xs text-gray-500">Purchase order count, total financial spend, and receipt fulfillment rate</p>
+              </div>
+
+              <div className="relative max-w-xs w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search supplier name, contact..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 text-xs outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border border-gray-200 dark:border-zinc-800 rounded-xl">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3">Supplier Name</th>
+                    <th className="px-4 py-3">Contact Person</th>
+                    <th className="px-4 py-3 text-center">POs Issued</th>
+                    <th className="px-4 py-3 text-right">Total Purchase Spend</th>
+                    <th className="px-4 py-3 text-center">GRNs Completed</th>
+                    <th className="px-4 py-3 text-center">GRNs Pending</th>
+                    <th className="px-4 py-3 text-center">Vendor Tier</th>
+                    <th className="px-4 py-3 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                  {supplierAnalysisData.map((sup, idx) => (
+                    <tr key={sup.id || idx} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                      <td className="px-4 py-3 font-bold text-gray-900 dark:text-white">
+                        {sup.name}
+                        <div className="text-[10px] text-gray-400 font-normal">{sup.email || sup.phone || 'No direct contact'}</div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                        {sup.contactName || 'Primary Representative'}
+                      </td>
+                      <td className="px-4 py-3 text-center font-bold">
+                        {sup.poCount}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                        {formatCurrency(sup.totalSpend)}
+                      </td>
+                      <td className="px-4 py-3 text-center font-semibold text-emerald-600">
+                        {sup.completedGRNs}
+                      </td>
+                      <td className="px-4 py-3 text-center font-semibold text-amber-600">
+                        {sup.pendingGRNs}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                          {sup.statusLabel}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => setSelectedSupplier(sup)}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold inline-flex items-center gap-1 bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 rounded-lg"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> View History
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {supplierAnalysisData.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                        No suppliers match search criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-REPORT 3: PENDING GRNS REPORT */}
+      {activeReport === 'pendingGRNs' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+              <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Pending Orders Awaiting GRN</div>
+              <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">{pendingGRNsData.length}</div>
+              <div className="text-[10px] text-gray-400 mt-1">Purchase orders with outstanding receipts</div>
+            </div>
+
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+              <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Pending Value</div>
+              <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+                {formatCurrency(pendingGRNsData.reduce((sum, p) => sum + p.pendingValue, 0))}
+              </div>
+              <div className="text-[10px] text-gray-400 mt-1">Value of goods yet to be delivered</div>
+            </div>
+
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+              <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Overdue / Urgent Deliveries</div>
+              <div className="text-2xl font-black text-red-600 dark:text-red-400 mt-1">
+                {pendingGRNsData.length}
+              </div>
+              <div className="text-[10px] text-red-500 font-medium mt-1">Requires follow-up with vendor</div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h3 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
+                  <CheckSquare className="w-4 h-4 text-indigo-600" /> Pending Goods Receipt Notes (GRN) Register
+                </h3>
+                <p className="text-xs text-gray-500">Track purchase orders pending physical warehouse receipt and verification</p>
+              </div>
+
+              <div className="relative max-w-xs w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search PO #, supplier..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 text-xs outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border border-gray-200 dark:border-zinc-800 rounded-xl">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3">PO Number</th>
+                    <th className="px-4 py-3">Supplier Name</th>
+                    <th className="px-4 py-3">PO Date</th>
+                    <th className="px-4 py-3 text-right">Ordered Qty</th>
+                    <th className="px-4 py-3 text-right">Received GRN Qty</th>
+                    <th className="px-4 py-3 text-right">Pending Receipt Qty</th>
+                    <th className="px-4 py-3 text-right">Pending Value</th>
+                    <th className="px-4 py-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                  {pendingGRNsData.map((po, idx) => {
+                    const sup = suppliers.find(s => s.id === po.supplierId);
+                    return (
+                      <tr key={po.id || idx} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                        <td className="px-4 py-3 font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                          {po.poNumber || po.id}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">
+                          {sup?.name || po.supplierName || po.supplierId || 'Supplier'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                          {po.date ? new Date(po.date).toLocaleDateString('en-IN') : 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono">
+                          {po.orderedQty} {po.unit || 'Kgs'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-emerald-600">
+                          {po.receivedQty} {po.unit || 'Kgs'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono font-bold text-amber-600">
+                          {po.pendingQty} {po.unit || 'Kgs'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white font-mono">
+                          {formatCurrency(po.pendingValue)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40">
+                            Pending GRN
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {pendingGRNsData.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                        No pending GRN orders found. All POs fully received!
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PO SLIP VOUCHER MODAL */}
+      {selectedPO && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-zinc-900 max-w-2xl w-full rounded-2xl shadow-2xl border border-gray-200 dark:border-zinc-800 p-6 space-y-6">
+            <div className="flex justify-between items-start border-b border-gray-100 dark:border-zinc-800 pb-4">
+              <div>
+                <span className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider">
+                  PURCHASE ORDER VOUCHER
+                </span>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mt-1">PO #{selectedPO.poNumber || selectedPO.id}</h2>
+              </div>
+              <button onClick={() => setSelectedPO(null)} className="p-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg text-gray-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs bg-gray-50 dark:bg-zinc-800/50 p-4 rounded-xl">
+              <div>
+                <div className="text-gray-400 font-semibold">Supplier Name</div>
+                <div className="font-bold text-gray-900 dark:text-white text-sm mt-0.5">{selectedPO.supplierName || selectedPO.supplierId || 'Main Vendor'}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 font-semibold">PO Issue Date</div>
+                <div className="font-bold text-gray-900 dark:text-white text-sm mt-0.5">{selectedPO.date ? new Date(selectedPO.date).toLocaleDateString('en-IN') : 'N/A'}</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase">Item Details</h4>
+              <div className="border rounded-xl overflow-hidden text-xs">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 dark:bg-zinc-800 font-semibold text-gray-500">
+                    <tr>
+                      <th className="p-3">Description</th>
+                      <th className="p-3 text-right">Quantity</th>
+                      <th className="p-3 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-gray-100 dark:border-zinc-800">
+                      <td className="p-3 font-semibold">{selectedPO.itemDescription || 'Raw Yarn Goods'}</td>
+                      <td className="p-3 text-right font-mono">{selectedPO.quantity || 100} {selectedPO.unit || 'Kgs'}</td>
+                      <td className="p-3 text-right font-bold font-mono">{formatCurrency(Number(selectedPO.totalAmount) || 0)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-zinc-800">
+              <button onClick={() => window.print()} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2">
+                <Printer className="w-4 h-4" /> Print PO Document
+              </button>
+              <button onClick={() => setSelectedPO(null)} className="px-4 py-2 bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-semibold">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUPPLIER DETAIL MODAL */}
+      {selectedSupplier && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-zinc-900 max-w-2xl w-full rounded-2xl shadow-2xl border border-gray-200 dark:border-zinc-800 p-6 space-y-6">
+            <div className="flex justify-between items-start border-b border-gray-100 dark:border-zinc-800 pb-4">
+              <div>
+                <span className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider">
+                  VENDOR PERFORMANCE PROFILE
+                </span>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mt-1">{selectedSupplier.name}</h2>
+              </div>
+              <button onClick={() => setSelectedSupplier(null)} className="p-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg text-gray-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs bg-gray-50 dark:bg-zinc-800/50 p-4 rounded-xl">
+              <div>
+                <div className="text-gray-400 font-semibold">Contact Person</div>
+                <div className="font-bold text-gray-900 dark:text-white text-sm mt-0.5">{selectedSupplier.contactName || 'N/A'}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 font-semibold">Total Lifetime Spend</div>
+                <div className="font-bold text-emerald-600 dark:text-emerald-400 text-sm mt-0.5 font-mono">{formatCurrency(selectedSupplier.totalSpend)}</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase">Purchase Order History ({selectedSupplier.pos.length})</h4>
+              <div className="border rounded-xl overflow-hidden text-xs max-h-48 overflow-y-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 dark:bg-zinc-800 font-semibold text-gray-500">
+                    <tr>
+                      <th className="p-3">PO #</th>
+                      <th className="p-3">Date</th>
+                      <th className="p-3 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedSupplier.pos.map((p: any, i: number) => (
+                      <tr key={i} className="border-t border-gray-100 dark:border-zinc-800">
+                        <td className="p-3 font-mono font-bold text-indigo-600">{p.poNumber || p.id}</td>
+                        <td className="p-3">{p.date ? new Date(p.date).toLocaleDateString('en-IN') : 'N/A'}</td>
+                        <td className="p-3 text-right font-mono font-bold">{formatCurrency(Number(p.totalAmount) || 0)}</td>
+                      </tr>
+                    ))}
+                    {selectedSupplier.pos.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="p-4 text-center text-gray-500">No POs recorded for this vendor.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-zinc-800">
+              <button onClick={() => setSelectedSupplier(null)} className="px-4 py-2 bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-semibold">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
