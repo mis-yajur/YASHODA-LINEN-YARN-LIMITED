@@ -92,12 +92,10 @@ function doPost(e) {
       
       // Auto-generate or update headers
       if (lastRow === 0 || lastCol === 0) {
-        // Sheet is completely empty, write headers to first row
         headers = inputKeys;
         sheet.appendRow(headers);
         sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
       } else {
-        // Read existing headers
         headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
         
         var newHeadersAdded = false;
@@ -108,14 +106,12 @@ function doPost(e) {
           }
         }
         
-        // Update header row if there are new headers
         if (newHeadersAdded) {
           sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
           sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
         }
       }
       
-      // Map data to the correct column order based on headers
       for (var j = 0; j < headers.length; j++) {
         var key = headers[j];
         var val = data[key];
@@ -130,10 +126,38 @@ function doPost(e) {
       }
       
       sheet.appendRow(rowData);
+    } else if (action === 'update' || action === 'delete') {
+      var id = data.id;
+      if (id) {
+        var dataRange = sheet.getDataRange();
+        var values = dataRange.getValues();
+        var headers = values[0];
+        var idIndex = headers.indexOf('id');
+        
+        if (idIndex > -1) {
+          for (var r = 1; r < values.length; r++) {
+            if (values[r][idIndex] === id) {
+              if (action === 'delete') {
+                sheet.deleteRow(r + 1);
+              } else if (action === 'update') {
+                for (var j = 0; j < headers.length; j++) {
+                  var key = headers[j];
+                  if (data[key] !== undefined) {
+                    var val = data[key];
+                    sheet.getRange(r + 1, j + 1).setValue(val === null ? "" : (typeof val === 'object' ? JSON.stringify(val) : val));
+                  }
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
     }
     
     return ContentService.createTextOutput(JSON.stringify({ success: true }))
       .setMimeType(ContentService.MimeType.JSON);
+
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString(), trace: error.stack }))
       .setMimeType(ContentService.MimeType.JSON);

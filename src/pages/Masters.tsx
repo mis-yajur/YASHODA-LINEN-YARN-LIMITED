@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Warehouse, Department } from '../types';
-import { Plus, MapPin, Building, Store, X, FolderTree, Users, Factory } from 'lucide-react';
+import { Plus, MapPin, Building, Store, X, FolderTree, Users, Factory, Pencil, Trash2 } from 'lucide-react';
 
 export default function Masters() {
-  const { warehouses, departments, addWarehouse, addDepartment, stock } = useApp();
+  const { warehouses, departments, addWarehouse, updateWarehouse, deleteWarehouse, addDepartment, updateDepartment, deleteDepartment, stock } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'warehouse' | 'department' | 'company' | 'user'>('warehouse');
   const [activeTab, setActiveTab] = useState<'departments' | 'warehouses' | 'companies' | 'users'>('departments');
+  const [editItem, setEditItem] = useState<any>(null);
 
   return (
     <div className="space-y-6">
@@ -16,6 +17,7 @@ export default function Masters() {
         {(activeTab === 'warehouses' || activeTab === 'departments' || activeTab === 'companies' || activeTab === 'users') && (
           <button 
             onClick={() => { 
+              setEditItem(null);
               if (activeTab === 'warehouses') setModalType('warehouse');
               else if (activeTab === 'departments') setModalType('department');
               else if (activeTab === 'companies') setModalType('company');
@@ -66,7 +68,7 @@ export default function Masters() {
             const Icon = wh.type.toLowerCase() === 'store' ? Store : Building;
 
             return (
-              <div key={wh.id} className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-6 flex flex-col h-full">
+              <div key={wh.id} className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-6 flex flex-col h-full group">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg">
@@ -78,6 +80,22 @@ export default function Masters() {
                         {wh.type}
                       </span>
                     </div>
+                  </div>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => { setEditItem(wh); setModalType('warehouse'); setIsModalOpen(true); }}
+                      className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                      title="Edit Warehouse"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => { if(window.confirm('Delete this warehouse?')) deleteWarehouse(wh.id); }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                      title="Delete Warehouse"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
@@ -100,13 +118,31 @@ export default function Masters() {
       {activeTab === 'departments' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {departments.map(dept => (
-            <div key={dept.id} className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-6 flex items-center gap-4">
-              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg">
-                <FolderTree className="w-6 h-6" />
+            <div key={dept.id} className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-6 flex items-center justify-between gap-4 group">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg">
+                  <FolderTree className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">{dept.name}</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Head: {dept.head}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-lg">{dept.name}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Head: {dept.head}</p>
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={() => { setEditItem(dept); setModalType('department'); setIsModalOpen(true); }}
+                  className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                  title="Edit Department"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => { if(window.confirm('Delete this department?')) deleteDepartment(dept.id); }}
+                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  title="Delete Department"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
           ))}
@@ -191,11 +227,19 @@ export default function Masters() {
       {isModalOpen && (
         <LocationModal 
           type={modalType}
-          onClose={() => setIsModalOpen(false)} 
+          initialData={editItem}
+          onClose={() => { setIsModalOpen(false); setEditItem(null); }} 
           onSave={(data) => { 
-            if (modalType === 'warehouse') addWarehouse(data);
-            else addDepartment(data);
-            setIsModalOpen(false); 
+            if (modalType === 'warehouse') {
+              if (editItem) updateWarehouse(editItem.id, data);
+              else addWarehouse(data);
+            }
+            else {
+              if (editItem) updateDepartment(editItem.id, data);
+              else addDepartment(data);
+            }
+            setIsModalOpen(false);
+            setEditItem(null);
           }} 
         />
       )}
@@ -203,12 +247,14 @@ export default function Masters() {
   );
 }
 
-function LocationModal({ type, onClose, onSave }: { type: 'warehouse' | 'department' | 'company' | 'user', onClose: () => void, onSave: (data: any) => void }) {
+function LocationModal({ type, onClose, onSave, initialData }: { type: 'warehouse' | 'department' | 'company' | 'user', onClose: () => void, onSave: (data: any) => void, initialData?: any }) {
   const [formData, setFormData] = useState(
+    initialData || (
     type === 'warehouse' ? { name: '', type: 'Warehouse' } :
     type === 'department' ? { name: '', head: '', plantId: 'Plant-1' } :
     type === 'company' ? { name: '', type: 'Company', location: '' } :
     { name: '', email: '', role: 'User', status: 'Active' }
+    )
   );
 
   return (
@@ -216,7 +262,8 @@ function LocationModal({ type, onClose, onSave }: { type: 'warehouse' | 'departm
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-zinc-800">
           <h2 className="text-lg font-bold">
-            {type === 'warehouse' ? 'New Warehouse' : 
+            {initialData ? `Edit ${type === 'warehouse' ? 'Warehouse' : type === 'department' ? 'Department' : type === 'company' ? 'Company' : 'User'}` :
+            type === 'warehouse' ? 'New Warehouse' : 
              type === 'department' ? 'New Department' : 
              type === 'company' ? 'New Company/Plant' : 'New User'}
           </h2>

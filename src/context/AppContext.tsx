@@ -6,7 +6,11 @@ interface AppContextType extends AppState {
   initApp: () => Promise<void>;
   addItem: (item: Omit<Item, 'id'>) => Promise<void>;
   addDepartment: (dept: Omit<Department, 'id'>) => Promise<void>;
+  updateDepartment: (id: string, data: Partial<Department>) => Promise<void>;
+  deleteDepartment: (id: string) => Promise<void>;
   addWarehouse: (wh: Omit<Warehouse, 'id'>) => Promise<void>;
+  updateWarehouse: (id: string, data: Partial<Warehouse>) => Promise<void>;
+  deleteWarehouse: (id: string) => Promise<void>;
   addSupplier: (sup: Omit<Supplier, 'id'>) => Promise<void>;
   addGateEntry: (entry: Omit<GateEntry, 'id'>) => Promise<void>;
   addPR: (pr: Omit<PurchaseRequisition, 'id'>) => Promise<void>;
@@ -81,6 +85,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // Use Google Apps Script Web App
         const res = await fetch(savedUrl, {
           method: 'POST',
+          mode: 'no-cors',
           headers: {
             // Using text/plain avoids CORS preflight OPTIONS request
             'Content-Type': 'text/plain;charset=utf-8',
@@ -92,10 +97,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             spreadsheetId: localStorage.getItem('yashoda_inventory_spreadsheet_id')
           })
         });
-        const result = await res.json();
-        if (!result.success) {
-          console.error("Apps Script Error:", result.error, result.trace);
-        }
+        // We cannot read res.json() when mode is no-cors. We assume it successfully triggered if fetch didn't throw.
       } else {
         // Fallback to Google Sheets API (OAuth) if Apps Script isn't configured
         const { appendRow } = await import('../lib/sheets');
@@ -171,10 +173,42 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     await syncToSheets('append', 'departments', dept);
   };
 
+  const updateDepartment = async (id: string, data: Partial<Department>) => {
+    setState(s => ({
+      ...s,
+      departments: s.departments.map(d => d.id === id ? { ...d, ...data } : d)
+    }));
+    await syncToSheets('update', 'departments', { id, ...data });
+  };
+
+  const deleteDepartment = async (id: string) => {
+    setState(s => ({
+      ...s,
+      departments: s.departments.filter(d => d.id !== id)
+    }));
+    await syncToSheets('delete', 'departments', { id });
+  };
+
   const addWarehouse = async (whData: Omit<Warehouse, 'id'>) => {
     const wh: Warehouse = { ...whData, id: crypto.randomUUID() };
     setState(s => ({ ...s, warehouses: [...s.warehouses, wh] }));
     await syncToSheets('append', 'warehouses', wh);
+  };
+
+  const updateWarehouse = async (id: string, data: Partial<Warehouse>) => {
+    setState(s => ({
+      ...s,
+      warehouses: s.warehouses.map(w => w.id === id ? { ...w, ...data } : w)
+    }));
+    await syncToSheets('update', 'warehouses', { id, ...data });
+  };
+
+  const deleteWarehouse = async (id: string) => {
+    setState(s => ({
+      ...s,
+      warehouses: s.warehouses.filter(w => w.id !== id)
+    }));
+    await syncToSheets('delete', 'warehouses', { id });
   };
 
   const addSupplier = async (supData: Omit<Supplier, 'id'>) => {
@@ -262,7 +296,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AppContext.Provider value={{ ...state, setScriptUrl, initApp, addItem, addDepartment, addWarehouse, addSupplier, addGateEntry, addPR, addPO, addGRN, addStockTransfer, addStockAdjustment, issueMaterial, receiveStock }}>
+    <AppContext.Provider value={{ ...state, setScriptUrl, initApp, addItem, addDepartment, updateDepartment, deleteDepartment, addWarehouse, updateWarehouse, deleteWarehouse, addSupplier, addGateEntry, addPR, addPO, addGRN, addStockTransfer, addStockAdjustment, issueMaterial, receiveStock }}>
       {children}
     </AppContext.Provider>
   );
