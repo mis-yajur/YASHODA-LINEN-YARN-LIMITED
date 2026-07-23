@@ -184,6 +184,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
   const updateUser = async (id: string, data: any) => firestoreUpdate('users', id, data);
   const addItem = async (item: Omit<Item, 'id'>) => firestoreAdd('items', item);
+  const updateItem = async (id: string, data: Partial<Item>) => firestoreUpdate('items', id, data);
+  const deleteItem = async (id: string) => firestoreDelete('items', id);
   const addDepartment = async (dept: Omit<Department, 'id'>) => firestoreAdd('departments', dept);
   const updateDepartment = async (id: string, data: Partial<Department>) => firestoreUpdate('departments', id, data);
   const deleteDepartment = async (id: string) => firestoreDelete('departments', id);
@@ -280,6 +282,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     
     initApp,
     addItem,
+    updateItem,
+    deleteItem,
     addDepartment,
     updateDepartment,
     deleteDepartment,

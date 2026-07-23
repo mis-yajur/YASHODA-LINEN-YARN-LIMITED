@@ -5,7 +5,7 @@ import { Plus, MapPin, Building, Store, X, FolderTree, Users, Factory, Pencil, T
 import { CSVUploader } from '../components/CSVUploader';
 
 export default function Masters() {
-    const { users = [], addUser, updateUser, items = [], addItem, warehouses = [], departments = [], addWarehouse, updateWarehouse, deleteWarehouse, addDepartment, updateDepartment, deleteDepartment, stock = [] } = useApp();
+    const { users = [], addUser, updateUser, items = [], addItem, updateItem, deleteItem, warehouses = [], departments = [], addWarehouse, updateWarehouse, deleteWarehouse, addDepartment, updateDepartment, deleteDepartment, stock = [] } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'warehouse' | 'department' | 'company' | 'user' | 'item'>('warehouse');
     const [activeTab, setActiveTab] = useState<'departments' | 'warehouses' | 'companies' | 'users' | 'items'>('departments');
@@ -233,20 +233,46 @@ export default function Masters() {
                 <th className="p-4">SKU</th>
                 <th className="p-4">Name</th>
                 <th className="p-4">UOM</th>
+                <th className="p-4">Type</th>
+                <th className="p-4">Reorder Level</th>
                 <th className="p-4">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {items.map(item => (
-                <tr key={item.id} className="border-b border-gray-100 dark:border-zinc-800 last:border-0">
-                  <td className="p-4">{item.sku}</td>
+              {(items || []).map(item => (
+                <tr key={item.id} className="border-b border-gray-100 dark:border-zinc-800 last:border-0 hover:bg-gray-50 dark:hover:bg-zinc-800/50">
+                  <td className="p-4 font-mono text-xs">{item.sku}</td>
                   <td className="p-4 font-medium">{item.name}</td>
                   <td className="p-4">{item.uom}</td>
-                  <td className="p-4">
-                    <button onClick={() => {}} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
+                  <td className="p-4">{item.type || 'Raw Material'}</td>
+                  <td className="p-4">{item.reorderLevel || 0}</td>
+                  <td className="p-4 flex items-center gap-2">
+                    <button 
+                      onClick={() => { setEditItem(item); setModalType('item'); setIsModalOpen(true); }}
+                      className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg flex items-center gap-1 text-sm font-medium transition-colors"
+                      title="Edit Item"
+                    >
+                      <Pencil className="w-4 h-4" /> Edit
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (window.confirm(`Are you sure you want to delete item "${item.name}"?`)) {
+                          if (deleteItem) deleteItem(item.id);
+                        }
+                      }}
+                      className="text-red-600 hover:text-red-900 dark:text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg flex items-center gap-1 text-sm font-medium transition-colors"
+                      title="Delete Item"
+                    >
+                      <Trash2 className="w-4 h-4" /> Delete
+                    </button>
                   </td>
                 </tr>
               ))}
+              {(!items || items.length === 0) && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-gray-500">No items configured in Item Master.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -270,7 +296,8 @@ export default function Masters() {
               // noop
             }
             else if (modalType === 'item') {
-               await addItem(data);
+              if (editItem && updateItem) await updateItem(editItem.id, data);
+              else await addItem(data);
             }
             else if (modalType === 'user') {
               if (editItem) await updateUser(editItem.id, data);
