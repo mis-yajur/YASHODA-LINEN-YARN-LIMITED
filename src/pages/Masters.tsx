@@ -324,7 +324,7 @@ function LocationModal({ type, onClose, onSave, initialData }: { type: 'warehous
     type === 'warehouse' ? { name: '', type: 'Warehouse' } :
     type === 'department' ? { name: '', head: '', plantId: 'Plant-1' } :
     type === 'company' ? { name: '', type: 'Company', location: '' } :
-    { name: '', email: '', role: 'User', status: 'Active' }
+    { name: '', email: '', role: 'User', status: 'Active', password: '' }
     )
   );
 
@@ -405,6 +405,12 @@ function LocationModal({ type, onClose, onSave, initialData }: { type: 'warehous
                 <label className="block text-sm font-medium mb-1">Email</label>
                 <input type="email" value={(formData as any).email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
               </div>
+              {!initialData && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Password</label>
+                  <input type="password" value={(formData as any).password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium mb-1">Role</label>
                 <select value={(formData as any).role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none">

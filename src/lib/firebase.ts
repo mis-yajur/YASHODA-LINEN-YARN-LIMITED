@@ -17,3 +17,5 @@ export const logout = async () => {
 };
 
 export { signInWithEmailAndPassword, createUserWithEmailAndPassword };
+
+export { firebaseConfig };

@@ -50,6 +50,8 @@ function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Notifications', path: '/notifications', icon: Bell },
   ];
 
+  if (!user) return <>{children}</>;
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-zinc-950 flex flex-col text-gray-900 dark:text-gray-100 transition-colors">
       {/* Top Navigation Bar */}
@@ -148,23 +150,39 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function AppRoutes() {
+  const { user } = useApp();
+  return (
+    <Routes>
+      {user ? (
+        <>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/masters" element={<Masters />} />
+          <Route path="/gate" element={<GateRegister />} />
+          <Route path="/procurement" element={<Procurement />} />
+          <Route path="/inventory" element={<Inventory />} />
+          <Route path="/issue" element={<MaterialIssue />} />
+          <Route path="/approvals" element={<Approvals />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </>
+      ) : (
+        <>
+          <Route path="/login" element={<Login />} />
+          <Route path="*" element={<Navigate to="/login" />} />
+        </>
+      )}
+    </Routes>
+  );
+}
+
 export default function App() {
   return (
     <AppProvider>
       <HashRouter>
         <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/masters" element={<Masters />} />
-            <Route path="/gate" element={<GateRegister />} />
-            <Route path="/procurement" element={<Procurement />} />
-            <Route path="/inventory" element={<Inventory />} />
-            <Route path="/issue" element={<MaterialIssue />} />
-            <Route path="/approvals" element={<Approvals />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
+          <AppRoutes />
         </Layout>
       </HashRouter>
     </AppProvider>

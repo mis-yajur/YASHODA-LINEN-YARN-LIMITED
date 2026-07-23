@@ -165,7 +165,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addUser = async (user: any) => firestoreAdd('users', user);
+  const addUser = async (userData: any) => {
+    if (userData.password) {
+      // create user in Firebase Auth using a secondary app instance to avoid auto-login disrupting admin
+      const { initializeApp } = await import('firebase/app');
+      const { getAuth, createUserWithEmailAndPassword } = await import('firebase/auth');
+      const { firebaseConfig } = await import('../lib/firebase');
+      
+      const secondaryApp = initializeApp(firebaseConfig, 'Secondary' + Date.now());
+      const secondaryAuth = getAuth(secondaryApp);
+      try {
+        await createUserWithEmailAndPassword(secondaryAuth, userData.email, userData.password);
+      } catch (e: any) {
+        console.error("Auth creation failed", e);
+        throw new Error(e.message || "Failed to create authentication user");
+      } finally {
+        await secondaryApp.delete();
+      }
+    }
+    const { password, ...rest } = userData;
+    return firestoreAdd('users', rest);
+  };
   const updateUser = async (id: string, data: any) => firestoreUpdate('users', id, data);
   const addItem = async (item: Omit<Item, 'id'>) => firestoreAdd('items', item);
   const addDepartment = async (dept: Omit<Department, 'id'>) => firestoreAdd('departments', dept);
