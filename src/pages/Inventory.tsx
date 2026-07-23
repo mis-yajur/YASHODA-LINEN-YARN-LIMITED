@@ -23,7 +23,6 @@ export default function Inventory() {
     addStockTransfer, 
     addStockAdjustment,
     gateEntriesYashoda = [],
-    gateEntriesAIPL = [],
     addGateEntry,
     updateGateEntry,
     deleteGateEntry,
@@ -242,7 +241,7 @@ export default function Inventory() {
     });
 
     return Object.values(map);
-  }, [gateEntriesYashoda, gateEntriesAIPL, items, stock, materialIssueItems]);
+  }, [gateEntriesYashoda, items, stock, materialIssueItems]);
 
   // Sync Yashoda Gate Entries to Item Master & Current Stock
   const handleSyncGateEntriesToInventory = async () => {
@@ -317,14 +316,75 @@ export default function Inventory() {
     alert('Bulk upload completed');
   };
 
-  const filteredCatalogItems = useMemo(() => {
-    return (items || []).filter(item =>
-      (item.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.sku || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.type || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.categoryId || '').toLowerCase().includes(searchTerm.toLowerCase())
+  // Item Master List - Derived directly from Yashoda Gate Entry Register & Catalog
+  const yashodaItemMasterList = useMemo(() => {
+    const map: Record<string, {
+      id: string;
+      itemDescription: string;
+      skuCode: string;
+      categoryType: string;
+      uom: string;
+      company: string;
+    }> = {};
+
+    // 1. Populate directly from Yashoda Gate Entry Register
+    (yashodaGateEntries || []).forEach(entry => {
+      const desc = (entry.materialDescription || '').trim();
+      if (!desc) return;
+      const key = desc.toLowerCase();
+
+      if (!map[key]) {
+        // Deterministic clean SKU code generator
+        const skuHash = Math.abs(key.split('').reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) | 0, 0)) % 9000 + 1000;
+        const skuCode = 'YASH-' + desc.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X') + '-' + skuHash;
+
+        map[key] = {
+          id: entry.id || 'gate-' + key,
+          itemDescription: desc,
+          skuCode: skuCode,
+          categoryType: 'Raw Material / Store Item',
+          uom: entry.unit || 'Kgs',
+          company: 'Yashoda Linen Yarn Ltd'
+        };
+      } else {
+        if (entry.unit) map[key].uom = entry.unit;
+      }
+    });
+
+    // 2. Also map existing items catalog if present
+    (items || []).forEach(item => {
+      const desc = (item.name || '').trim();
+      if (!desc) return;
+      const key = desc.toLowerCase();
+
+      if (!map[key]) {
+        map[key] = {
+          id: item.id,
+          itemDescription: desc,
+          skuCode: item.sku || ('YASH-' + Math.floor(1000 + Math.random() * 9000)),
+          categoryType: item.categoryId || item.type || 'Raw Material',
+          uom: item.uom || 'Kgs',
+          company: 'Yashoda Linen Yarn Ltd'
+        };
+      } else {
+        if (item.sku) map[key].skuCode = item.sku;
+        if (item.categoryId || item.type) map[key].categoryType = item.categoryId || item.type;
+        if (item.uom) map[key].uom = item.uom;
+      }
+    });
+
+    return Object.values(map);
+  }, [yashodaGateEntries, items]);
+
+  const filteredItemMasterList = useMemo(() => {
+    return yashodaItemMasterList.filter(item =>
+      item.itemDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.skuCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.categoryType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.uom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.company.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [items, searchTerm]);
+  }, [yashodaItemMasterList, searchTerm]);
 
   const filteredYashodaGateItems = yashodaGateEntries.filter(entry =>
     (entry.materialDescription || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -505,51 +565,36 @@ export default function Inventory() {
                     <th className="px-4 py-3">SKU Code</th>
                     <th className="px-4 py-3">Category / Type</th>
                     <th className="px-4 py-3">UOM</th>
-                    <th className="px-4 py-3 text-right">Reorder Level</th>
-                    <th className="px-4 py-3 text-right">Live Available Stock</th>
-                    <th className="px-4 py-3 text-center">Stock Status</th>
+                    <th className="px-4 py-3">Company</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                  {filteredCatalogItems.map(item => {
-                    const matchedLive = liveCurrentStock.find(l => l.itemName.toLowerCase() === item.name.toLowerCase());
-                    const currentStockVal = matchedLive ? matchedLive.currentStock : 0;
-                    const isLow = currentStockVal <= (item.reorderLevel || 10);
+                  {filteredItemMasterList.map(item => {
                     return (
                       <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
                         <td className="px-4 py-3 font-bold text-gray-900 dark:text-white">
-                          {item.name}
+                          {item.itemDescription}
                         </td>
                         <td className="px-4 py-3 font-mono font-semibold text-indigo-600 dark:text-indigo-400">
-                          {item.sku}
+                          {item.skuCode}
                         </td>
                         <td className="px-4 py-3 font-medium text-gray-600 dark:text-gray-300">
-                          {item.categoryId || item.type || 'Raw Material'}
+                          {item.categoryType}
                         </td>
                         <td className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">
                           {item.uom}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-amber-600 dark:text-amber-400 font-bold">
-                          {item.reorderLevel || 10} {item.uom}
-                        </td>
-                        <td className="px-4 py-3 text-right font-extrabold font-mono text-sm text-gray-900 dark:text-white">
-                          {currentStockVal.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {item.uom}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {currentStockVal <= 0 ? (
-                            <span className="text-[10px] font-bold text-red-600 bg-red-50 dark:bg-red-950/40 px-2.5 py-1 rounded-full">Out of Stock</span>
-                          ) : isLow ? (
-                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-full">Low Stock</span>
-                          ) : (
-                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full font-sans">Healthy Stock</span>
-                          )}
+                        <td className="px-4 py-3 font-medium">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                            {item.company}
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button 
                             onClick={() => {
-                              if (window.confirm(`Delete item "${item.name}" from Item Master?`)) {
-                                alert(`Item "${item.name}" removed from Item Master.`);
+                              if (window.confirm(`Delete item "${item.itemDescription}" from Item Master?`)) {
+                                alert(`Item "${item.itemDescription}" removed from Item Master.`);
                               }
                             }}
                             className="p-1 text-gray-400 hover:text-red-600 transition-colors"
@@ -561,10 +606,10 @@ export default function Inventory() {
                       </tr>
                     );
                   })}
-                  {filteredCatalogItems.length === 0 && (
+                  {filteredItemMasterList.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                        No items found in Item Master Catalog. Click "Sync Yashoda Gate Entries" or "Add Item" to populate catalog.
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                        No items found in Item Master Catalog. Items are populated automatically from Yashoda Gate Entry Register.
                       </td>
                     </tr>
                   )}
