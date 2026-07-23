@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Package, IndianRupee, ArrowRightLeft, TrendingUp } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Package, IndianRupee, ArrowRightLeft, TrendingUp, ArrowRight } from 'lucide-react';
 
 export default function Dashboard() {
   const { stock = [], items = [], materialIssues = [], gateEntriesYashoda = [], gateEntriesAIPL = [] } = useApp();
@@ -55,15 +56,48 @@ export default function Dashboard() {
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Current Stock Qty" value={currentStock.toLocaleString()} icon={Package} color="bg-blue-500" />
-        <StatCard title="Stock Value (Est)" value={formatCurrency(stockValue)} icon={IndianRupee} color="bg-emerald-500" />
-        <StatCard title="This Month Trans." value={thisMonthTransactions.toString()} icon={ArrowRightLeft} color="bg-purple-500" />
-        <StatCard title="Active Items" value={items.length.toString()} icon={TrendingUp} color="bg-amber-500" />
+        <StatCard 
+          title="Current Stock Qty" 
+          value={currentStock.toLocaleString()} 
+          icon={Package} 
+          color="bg-blue-500" 
+          to="/inventory"
+          subtitle="Click to view Inventory"
+        />
+        <StatCard 
+          title="Stock Value (Est)" 
+          value={formatCurrency(stockValue)} 
+          icon={IndianRupee} 
+          color="bg-emerald-500" 
+          to="/inventory"
+          subtitle="Click to view Stock Details"
+        />
+        <StatCard 
+          title="This Month Trans." 
+          value={thisMonthTransactions.toString()} 
+          icon={ArrowRightLeft} 
+          color="bg-purple-500" 
+          to="/gate"
+          subtitle="Click to view Gate Entries"
+        />
+        <StatCard 
+          title="Active Items" 
+          value={items.length.toString()} 
+          icon={TrendingUp} 
+          color="bg-amber-500" 
+          to="/masters"
+          subtitle="Click to view Item Masters"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
         <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800">
-          <h2 className="text-lg font-bold mb-4">Top 10 High Value Items (Stock)</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-bold">Top 10 High Value Items (Stock)</h2>
+            <Link to="/inventory" className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1">
+              View Inventory <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
           <div className="h-80">
             {top10Items.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -99,16 +133,44 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ title, value, icon: Icon, color }: { title: string, value: string, icon: any, color: string }) {
-  return (
-    <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 flex items-center gap-4">
-      <div className={`p-4 rounded-xl text-white ${color}`}>
-        <Icon className="w-6 h-6" />
+function StatCard({ 
+  title, 
+  value, 
+  icon: Icon, 
+  color, 
+  to, 
+  subtitle 
+}: { 
+  title: string, 
+  value: string, 
+  icon: any, 
+  color: string, 
+  to?: string, 
+  subtitle?: string 
+}) {
+  const CardContent = (
+    <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 flex items-center justify-between hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-all cursor-pointer group">
+      <div className="flex items-center gap-4">
+        <div className={`p-4 rounded-xl text-white ${color} group-hover:scale-105 transition-transform`}>
+          <Icon className="w-6 h-6" />
+        </div>
+        <div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{title}</p>
+          <p className="text-2xl font-bold">{value}</p>
+          {subtitle && (
+            <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {subtitle} →
+            </p>
+          )}
+        </div>
       </div>
-      <div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{title}</p>
-        <p className="text-2xl font-bold">{value}</p>
-      </div>
+      <ArrowRight className="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
     </div>
   );
+
+  if (to) {
+    return <Link to={to} className="block">{CardContent}</Link>;
+  }
+
+  return CardContent;
 }
