@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn } from 'lucide-react';
-import { initialGateEntries } from '../data/initialData';
-import { initAuth, googleSignIn, User } from '../lib/auth';
-import { getOrCreateSpreadsheet, appendRow, getSpreadsheetLink } from '../lib/sheets';
+import { GateEntry } from '../types';
+import { initAuth, googleSignIn, type User } from '../lib/auth';
+import { getOrCreateSpreadsheet, appendRow, getSpreadsheetLink, fetchRows } from '../lib/sheets';
 
 export default function GateRegister() {
   const { gateEntries, addGateEntry } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [sheetEntries, setSheetEntries] = useState<Omit<GateEntry, 'id'>[]>([]);
+  const [isLoadingSheet, setIsLoadingSheet] = useState(false);
   
   // Auth State
   const [needsAuth, setNeedsAuth] = useState(true);
@@ -17,12 +19,43 @@ export default function GateRegister() {
   const [sheetUrl, setSheetUrl] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  const loadSheetData = async () => {
+    setIsLoadingSheet(true);
+    try {
+      const spreadsheetId = await getOrCreateSpreadsheet();
+      setSheetUrl(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`);
+      const rows = await fetchRows(spreadsheetId, 'GateEntries');
+      if (rows && rows.length > 1) { // Skip header row
+        const mappedEntries = rows.slice(1).map(row => ({
+          slNo: row[0] || '',
+          date: row[1] || '',
+          vehicleNo: row[2] || '',
+          partyName: row[3] || '',
+          materialDescription: row[4] || '',
+          quantityWeight: row[5] || '',
+          inTime: row[6] || '',
+          outTime: row[7] || '',
+          invoiceNoValue: row[8] || '',
+          driverLicenceNo: row[9] || '',
+          contactNoSign: row[10] || '',
+          securitySign: ''
+        }));
+        setSheetEntries(mappedEntries);
+      }
+    } catch (e) {
+      console.error("Failed to load sheet data", e);
+    } finally {
+      setIsLoadingSheet(false);
+    }
+  };
+
   useEffect(() => {
     setSheetUrl(getSpreadsheetLink());
     const unsubscribe = initAuth(
       (user, token) => {
         setUser(user);
         setNeedsAuth(false);
+        loadSheetData();
       },
       () => setNeedsAuth(true)
     );
@@ -36,8 +69,7 @@ export default function GateRegister() {
       if (result) {
         setUser(result.user);
         setNeedsAuth(false);
-        const spreadsheetId = await getOrCreateSpreadsheet();
-        setSheetUrl(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`);
+        await loadSheetData();
       }
     } catch (err) {
       console.error('Login failed:', err);
@@ -62,7 +94,7 @@ export default function GateRegister() {
     securitySign: ''
   });
 
-  const allEntries = [...initialGateEntries, ...gateEntries].reverse();
+  const allEntries = [...sheetEntries, ...gateEntries.filter(g => !sheetEntries.some(s => s.slNo === g.slNo))].reverse();
 
   const filteredEntries = allEntries.filter(entry => 
     entry.partyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -112,23 +144,8 @@ export default function GateRegister() {
 
       const slNo = (allEntries.length + 1).toString();
       
-      // Save locally
-      addGateEntry({ ...formData, slNo });
-      
-      // Sync to sheets
-      await appendRow(spreadsheetId, [
-        slNo,
-        formData.date,
-        formData.vehicleNo,
-        formData.partyName,
-        formData.materialDescription,
-        formData.quantityWeight,
-        formData.inTime,
-        formData.outTime,
-        formData.invoiceNoValue,
-        formData.driverLicenceNo,
-        formData.contactNoSign
-      ]);
+      // Save locally and sync (AppContext handles sync to sheets now)
+      await addGateEntry({ ...formData, slNo });
 
       setIsModalOpen(false);
       setFormData({

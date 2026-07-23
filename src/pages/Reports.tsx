@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { FileText, Download, Filter, BarChart2, Truck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { initialGateEntries } from '../data/initialData';
 import {
   BarChart,
   Bar,
@@ -17,7 +16,7 @@ export default function Reports() {
   const { gateEntries } = useApp();
   const [activeCategory, setActiveCategory] = useState<'inventory' | 'procurement' | 'consumption' | 'gate'>('gate');
 
-  const allGateEntries = useMemo(() => [...initialGateEntries, ...gateEntries], [gateEntries]);
+  const allGateEntries = useMemo(() => gateEntries, [gateEntries]);
 
   // Generate data for Gate Entries by Date chart
   const gateEntriesByDate = useMemo(() => {

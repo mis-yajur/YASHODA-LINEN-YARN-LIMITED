@@ -48,16 +48,33 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [state, initialized]);
 
   const syncToSheets = async (actionName: string, sheetName: string, payload: any) => {
-    if (!state.scriptUrl) return;
     try {
-      await fetch(state.scriptUrl, {
-        method: 'POST',
-        body: JSON.stringify({
-          action: actionName,
-          sheetName,
-          data: payload
-        })
-      });
+      const { appendRow } = await import('../lib/sheets');
+      const spreadsheetId = localStorage.getItem('yashoda_inventory_spreadsheet_id');
+      if (!spreadsheetId) {
+        // App is not connected to sheets yet, just save locally.
+        return;
+      }
+      
+      // Map payload object to a flat array of string values
+      const values = Object.values(payload).map(val => 
+        typeof val === 'string' ? val : JSON.stringify(val)
+      );
+
+      // Map snake_case to PascalCase for the tab titles created in sheets.ts
+      const sheetNameMapping: Record<string, string> = {
+        'items': 'Items',
+        'departments': 'Departments',
+        'warehouses': 'Warehouses',
+        'suppliers': 'Suppliers',
+        'gate_entries': 'GateEntries',
+        'material_issues': 'MaterialIssues',
+        'material_issue_items': 'MaterialIssues' // Just putting items in MaterialIssues tab for now
+      };
+
+      const mappedSheetName = sheetNameMapping[sheetName] || sheetName;
+
+      await appendRow(spreadsheetId, mappedSheetName, values);
     } catch (e) {
       console.error('Offline or sync failed. Data saved locally.', e);
     }

@@ -1,12 +1,12 @@
 import { getAccessToken } from './auth';
 
-const GATE_ENTRIES_SPREADSHEET_ID_KEY = 'gate_entries_spreadsheet_id';
+const INVENTORY_SPREADSHEET_ID_KEY = 'yashoda_inventory_spreadsheet_id';
 
 export const getOrCreateSpreadsheet = async (): Promise<string> => {
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated');
 
-  const existingId = localStorage.getItem(GATE_ENTRIES_SPREADSHEET_ID_KEY);
+  const existingId = localStorage.getItem(INVENTORY_SPREADSHEET_ID_KEY);
   if (existingId) return existingId;
 
   // Create a new spreadsheet
@@ -18,14 +18,16 @@ export const getOrCreateSpreadsheet = async (): Promise<string> => {
     },
     body: JSON.stringify({
       properties: {
-        title: 'Yashoda Linen Gate Entries'
+        title: 'Yashoda Linen ERP Data'
       },
       sheets: [
-        {
-          properties: {
-            title: 'Entries'
-          }
-        }
+        { properties: { title: 'GateEntries' } },
+        { properties: { title: 'Items' } },
+        { properties: { title: 'Departments' } },
+        { properties: { title: 'Warehouses' } },
+        { properties: { title: 'Suppliers' } },
+        { properties: { title: 'Stock' } },
+        { properties: { title: 'MaterialIssues' } }
       ]
     })
   });
@@ -37,10 +39,10 @@ export const getOrCreateSpreadsheet = async (): Promise<string> => {
 
   const data = await res.json();
   const spreadsheetId = data.spreadsheetId;
-  localStorage.setItem(GATE_ENTRIES_SPREADSHEET_ID_KEY, spreadsheetId);
+  localStorage.setItem(INVENTORY_SPREADSHEET_ID_KEY, spreadsheetId);
 
-  // Initialize headers
-  await appendRow(spreadsheetId, [
+  // Initialize headers for Gate Entries
+  await appendRow(spreadsheetId, 'GateEntries', [
     'SL. No',
     'Date',
     'Vehicle No.',
@@ -54,14 +56,16 @@ export const getOrCreateSpreadsheet = async (): Promise<string> => {
     'Contact No.'
   ]);
 
+  // Optionally initialize headers for other sheets here...
+
   return spreadsheetId;
 };
 
-export const appendRow = async (spreadsheetId: string, values: string[]) => {
+export const appendRow = async (spreadsheetId: string, sheetName: string, values: string[]) => {
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated');
 
-  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Entries!A:K:append?valueInputOption=USER_ENTERED`, {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetName}!A:Z:append?valueInputOption=USER_ENTERED`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -78,8 +82,28 @@ export const appendRow = async (spreadsheetId: string, values: string[]) => {
   }
 };
 
+export const fetchRows = async (spreadsheetId: string, sheetName: string): Promise<string[][]> => {
+  const token = await getAccessToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetName}!A:Z`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    }
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(`Failed to fetch rows: ${JSON.stringify(errorData)}`);
+  }
+
+  const data = await res.json();
+  return data.values || [];
+};
+
 export const getSpreadsheetLink = () => {
-  const existingId = localStorage.getItem(GATE_ENTRIES_SPREADSHEET_ID_KEY);
+  const existingId = localStorage.getItem(INVENTORY_SPREADSHEET_ID_KEY);
   if (existingId) {
     return `https://docs.google.com/spreadsheets/d/${existingId}/edit`;
   }
