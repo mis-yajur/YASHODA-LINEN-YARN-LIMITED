@@ -98,36 +98,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           })
         });
         // We cannot read res.json() when mode is no-cors. We assume it successfully triggered if fetch didn't throw.
-      } else {
-        // Fallback to Google Sheets API (OAuth) if Apps Script isn't configured
-        const { appendRow } = await import('../lib/sheets');
-        const spreadsheetId = localStorage.getItem('yashoda_inventory_spreadsheet_id');
-        if (!spreadsheetId) {
-          // App is not connected to sheets yet, just save locally.
-          return;
-        }
         
-        const values = Object.values(validatedPayload);
-
-        // Map snake_case to PascalCase for the tab titles created in sheets.ts
-        const sheetNameMapping: Record<string, string> = {
-          'items': 'Items',
-          'departments': 'Departments',
-          'warehouses': 'Warehouses',
-          'suppliers': 'Suppliers',
-          'gate_entries_aipl': 'GateEntries_AIPL',
-          'gate_entries_yashoda': 'GateEntries_Yashoda',
-          'material_issues': 'MaterialIssues',
-          'material_issue_items': 'MaterialIssues', // Just putting items in MaterialIssues tab for now
-          'prs': 'PRs',
-          'pos': 'POs',
-          'grns': 'GRNs',
-          'stock_transfers': 'StockTransfers',
-          'stock_adjustments': 'StockAdjustments'
-        };
-
-        const mappedSheetName = sheetNameMapping[sheetName] || sheetName;
-        await appendRow(spreadsheetId, mappedSheetName, values);
       }
     } catch (e) {
       console.error('Offline or sync failed. Data saved locally.', e);
@@ -151,107 +122,143 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           isSyncing: false
         }));
       } else {
-         const defaultWh: Warehouse = { id: crypto.randomUUID(), name: 'Main Store', type: 'Warehouse' };
-         setState(s => ({ ...s, warehouses: [defaultWh], isSyncing: false }));
+        setState(s => ({ ...s, isSyncing: false }));
       }
-    } catch (error) {
-      console.error('Failed to init app:', error);
+    } catch (e) {
+      console.error(e);
       setState(s => ({ ...s, isSyncing: false }));
-    } finally {
-      setInitialized(true);
     }
   };
 
-  const addItem = async (itemData: Omit<Item, 'id'>) => {
-    const item: Item = { ...itemData, id: crypto.randomUUID() };
-    setState(s => ({ ...s, items: [...s.items, item] }));
-    await syncToSheets('append', 'items', item);
+  const addItem = async (item) => {
+    const newItem = { ...item, id: Date.now().toString() };
+    setState(s => ({ ...s, items: [...s.items, newItem] }));
+    await syncToSheets('append', 'items', newItem);
   };
 
-  const addDepartment = async (deptData: Omit<Department, 'id'>) => {
-    const dept: Department = { ...deptData, id: crypto.randomUUID() };
-    setState(s => ({ ...s, departments: [...s.departments, dept] }));
-    await syncToSheets('append', 'departments', dept);
+  const addDepartment = async (dept) => {
+    const newDept = { ...dept, id: Date.now().toString() };
+    setState(s => ({ ...s, departments: [...s.departments, newDept] }));
+    await syncToSheets('append', 'departments', newDept);
   };
 
-  const updateDepartment = async (id: string, data: Partial<Department>) => {
+  const updateDepartment = async (id, data) => {
     setState(s => ({
       ...s,
       departments: s.departments.map(d => d.id === id ? { ...d, ...data } : d)
     }));
-    await syncToSheets('update', 'departments', { id, ...data });
   };
 
-  const deleteDepartment = async (id: string) => {
+  const deleteDepartment = async (id) => {
     setState(s => ({
       ...s,
       departments: s.departments.filter(d => d.id !== id)
     }));
-    await syncToSheets('delete', 'departments', { id });
   };
 
-  const addWarehouse = async (whData: Omit<Warehouse, 'id'>) => {
-    const wh: Warehouse = { ...whData, id: crypto.randomUUID() };
-    setState(s => ({ ...s, warehouses: [...s.warehouses, wh] }));
-    await syncToSheets('append', 'warehouses', wh);
+  const addWarehouse = async (wh) => {
+    const newWh = { ...wh, id: Date.now().toString() };
+    setState(s => ({ ...s, warehouses: [...s.warehouses, newWh] }));
+    await syncToSheets('append', 'warehouses', newWh);
   };
 
-  const updateWarehouse = async (id: string, data: Partial<Warehouse>) => {
+  const updateWarehouse = async (id, data) => {
     setState(s => ({
       ...s,
       warehouses: s.warehouses.map(w => w.id === id ? { ...w, ...data } : w)
     }));
-    await syncToSheets('update', 'warehouses', { id, ...data });
   };
 
-  const deleteWarehouse = async (id: string) => {
+  const deleteWarehouse = async (id) => {
     setState(s => ({
       ...s,
       warehouses: s.warehouses.filter(w => w.id !== id)
     }));
-    await syncToSheets('delete', 'warehouses', { id });
   };
 
-  const addSupplier = async (supData: Omit<Supplier, 'id'>) => {
-    const sup: Supplier = { ...supData, id: crypto.randomUUID() };
-    setState(s => ({ ...s, suppliers: [...s.suppliers, sup] }));
-    await syncToSheets('append', 'suppliers', sup);
+  const addSupplier = async (sup) => {
+    const newSup = { ...sup, id: Date.now().toString() };
+    setState(s => ({ ...s, suppliers: [...s.suppliers, newSup] }));
+    await syncToSheets('append', 'suppliers', newSup);
   };
 
-  const addGateEntry = async (entryData: Omit<GateEntry, 'id'>) => {
-    const entry: GateEntry = { ...entryData, id: crypto.randomUUID() };
-    setState(s => ({ ...s, gateEntries: [...s.gateEntries, entry] }));
-    const sheetName = entry.companyType === 'AIPL' ? 'gate_entries_aipl' : 'gate_entries_yashoda';
-    await syncToSheets('append', sheetName, entry);
-  };
-
-  const issueMaterial = async (issueData: Omit<MaterialIssue, 'id'>, itemsData: Omit<MaterialIssueItem, 'id' | 'issueId'>[]) => {
-    const issue: MaterialIssue = { ...issueData, id: crypto.randomUUID() };
-    const items = itemsData.map(i => ({ ...i, id: crypto.randomUUID(), issueId: issue.id }));
+  const addGateEntry = async (entry) => {
+    const newEntry = { ...entry, id: Date.now().toString() };
+    setState(s => ({ ...s, gateEntries: [...s.gateEntries, newEntry] }));
     
+    // We map snake_case 'gate_entries_aipl' and 'gate_entries_yashoda' 
+    const typeKey = entry.companyType === 'AIPL' ? 'gate_entries_aipl' : 'gate_entries_yashoda';
+    await syncToSheets('append', typeKey, newEntry);
+  };
+
+  const addPR = async (pr) => {
+    const newPR = { ...pr, id: Date.now().toString() };
+    setState(s => ({ ...s, prs: [...s.prs, newPR] }));
+    await syncToSheets('append', 'prs', newPR);
+  };
+
+  const addPO = async (po) => {
+    const newPO = { ...po, id: Date.now().toString() };
+    setState(s => ({ ...s, pos: [...s.pos, newPO] }));
+    await syncToSheets('append', 'pos', newPO);
+  };
+
+  const addGRN = async (grn) => {
+    const newGRN = { ...grn, id: Date.now().toString() };
+    setState(s => ({ ...s, grns: [...s.grns, newGRN] }));
+    await syncToSheets('append', 'grns', newGRN);
+  };
+
+  const addStockTransfer = async (transfer) => {
+    const newTransfer = { ...transfer, id: Date.now().toString() };
+    setState(s => ({ ...s, stockTransfers: [...s.stockTransfers, newTransfer] }));
+    await syncToSheets('append', 'stock_transfers', newTransfer);
+  };
+
+  const addStockAdjustment = async (adjustment) => {
+    const newAdjustment = { ...adjustment, id: Date.now().toString() };
+    setState(s => ({ ...s, stockAdjustments: [...s.stockAdjustments, newAdjustment] }));
+    await syncToSheets('append', 'stock_adjustments', newAdjustment);
+  };
+
+  const issueMaterial = async (issue, itemsData) => {
+    const newIssue = { ...issue, id: Date.now().toString() };
+    const newItems = itemsData.map((item, index) => ({
+      ...item,
+      id: Date.now().toString() + '-' + index,
+      issueId: newIssue.id
+    }));
+
     setState(s => {
-      // Deduct from stock logic here (simplified for demo)
       let stockUpdates = [...s.stock];
-      items.forEach(reqItem => {
-         const existingStock = stockUpdates.find(st => st.itemId === reqItem.itemId);
-         if (existingStock) {
-           existingStock.quantity -= reqItem.quantity;
-         }
-      });
+      for (const item of newItems) {
+        const existing = stockUpdates.find(st => st.itemId === item.itemId && st.warehouseId === issue.fromWarehouseId);
+        if (existing) {
+          existing.quantity -= item.quantity;
+        } else {
+          stockUpdates.push({
+            id: Date.now().toString() + Math.random(),
+            itemId: item.itemId,
+            warehouseId: issue.fromWarehouseId,
+            quantity: -item.quantity,
+            lastUpdated: new Date().toISOString()
+          });
+        }
+      }
       return { 
         ...s, 
-        materialIssues: [...s.materialIssues, issue],
-        materialIssueItems: [...s.materialIssueItems, ...items],
+        materialIssues: [...s.materialIssues, newIssue],
+        materialIssueItems: [...s.materialIssueItems, ...newItems],
         stock: stockUpdates
       };
     });
 
-    await syncToSheets('append', 'material_issues', issue);
-    for (const item of items) {
+    await syncToSheets('append', 'material_issues', newIssue);
+    for (const item of newItems) {
       await syncToSheets('append', 'material_issue_items', item);
     }
-    // Note: Stock update sync logic would ideally happen on the backend or via an 'update' call.
   };
+
 
   const receiveStock = async (itemId: string, warehouseId: string, quantity: number, batchNo?: string) => {
     setState(s => {
@@ -260,45 +267,43 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (existing) {
         existing.quantity += quantity;
       } else {
-        stockUpdates.push({ id: crypto.randomUUID(), itemId, warehouseId, quantity, batchNo });
+        stockUpdates.push({
+          id: Date.now().toString(),
+          itemId,
+          warehouseId,
+          quantity,
+          batchNo,
+          lastUpdated: new Date().toISOString()
+        });
       }
       return { ...s, stock: stockUpdates };
     });
-    // Complex stock updates need custom endpoints in Code.gs
   };
 
-  const addPR = async (prData: Omit<PurchaseRequisition, 'id'>) => {
-    const pr: PurchaseRequisition = { ...prData, id: crypto.randomUUID() };
-    setState(s => ({ ...s, prs: [...(s.prs || []), pr] }));
-    await syncToSheets('append', 'prs', pr);
-  };
-
-  const addPO = async (poData: Omit<PurchaseOrder, 'id'>) => {
-    const po: PurchaseOrder = { ...poData, id: crypto.randomUUID() };
-    setState(s => ({ ...s, pos: [...(s.pos || []), po] }));
-    await syncToSheets('append', 'pos', po);
-  };
-
-  const addGRN = async (grnData: Omit<GRN, 'id'>) => {
-    const grn: GRN = { ...grnData, id: crypto.randomUUID() };
-    setState(s => ({ ...s, grns: [...(s.grns || []), grn] }));
-    await syncToSheets('append', 'grns', grn);
-  };
-
-  const addStockTransfer = async (transferData: Omit<StockTransfer, 'id'>) => {
-    const transfer: StockTransfer = { ...transferData, id: crypto.randomUUID() };
-    setState(s => ({ ...s, stockTransfers: [...(s.stockTransfers || []), transfer] }));
-    await syncToSheets('append', 'stock_transfers', transfer);
-  };
-
-  const addStockAdjustment = async (adjustmentData: Omit<StockAdjustment, 'id'>) => {
-    const adjustment: StockAdjustment = { ...adjustmentData, id: crypto.randomUUID() };
-    setState(s => ({ ...s, stockAdjustments: [...(s.stockAdjustments || []), adjustment] }));
-    await syncToSheets('append', 'stock_adjustments', adjustment);
+  const value = {
+    ...state,
+    setScriptUrl,
+    initApp,
+    addItem,
+    addDepartment,
+    updateDepartment,
+    deleteDepartment,
+    addWarehouse,
+    updateWarehouse,
+    deleteWarehouse,
+    addSupplier,
+    addGateEntry,
+    addPR,
+    addPO,
+    addGRN,
+    addStockTransfer,
+    addStockAdjustment,
+    issueMaterial,
+    receiveStock,
   };
 
   return (
-    <AppContext.Provider value={{ ...state, setScriptUrl, initApp, addItem, addDepartment, updateDepartment, deleteDepartment, addWarehouse, updateWarehouse, deleteWarehouse, addSupplier, addGateEntry, addPR, addPO, addGRN, addStockTransfer, addStockAdjustment, issueMaterial, receiveStock }}>
+    <AppContext.Provider value={value}>
       {children}
     </AppContext.Provider>
   );
@@ -306,6 +311,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
 export const useApp = () => {
   const context = useContext(AppContext);
-  if (!context) throw new Error('useApp must be used within AppProvider');
+  if (context === undefined) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
   return context;
 };

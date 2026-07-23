@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn } from 'lucide-react';
 import { GateEntry } from '../types';
-import { initAuth, googleSignIn, type User } from '../lib/auth';
-import { getOrCreateSpreadsheet, appendRow, getSpreadsheetLink, fetchRows } from '../lib/sheets';
+
+
 
 export default function GateRegister() {
   const { gateEntries, addGateEntry } = useApp();
