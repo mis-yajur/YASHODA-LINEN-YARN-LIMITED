@@ -5,7 +5,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    base: './',
+    base: '/YASHODA-LINEN-YARN-LIMITED/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
