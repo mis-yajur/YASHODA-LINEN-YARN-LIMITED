@@ -120,6 +120,7 @@ export default function Inventory() {
       issuedQty: number;
       currentStock: number;
       avgRate: number;
+      totalInwardValue: number;
       totalValue: number;
       reorderLevel: number;
       isLow: boolean;
@@ -146,6 +147,7 @@ export default function Inventory() {
           issuedQty: 0,
           currentStock: 0,
           avgRate: 0,
+          totalInwardValue: 0,
           totalValue: 0,
           reorderLevel: 10,
           isLow: false,
@@ -154,14 +156,16 @@ export default function Inventory() {
       }
 
       const qty = parseNumeric(entry.quantityWeight);
-      const total = parseNumeric(entry.totalPrice);
-      const rate = parseNumeric(entry.rateUom) || (qty > 0 ? total / qty : 0);
+      const entryUnit = entry.unit || map[key].uom || 'Kgs';
+      const qtyInNative = convertUnitQuantity(qty, entryUnit, map[key].uom);
 
-      map[key].inwardQty += qty;
-      if (rate > 0) {
-        map[key].avgRate = map[key].avgRate ? (map[key].avgRate + rate) / 2 : rate;
-      }
-      if (entry.unit) map[key].uom = entry.unit;
+      const base = parseNumeric(entry.basePrice);
+      const gst = parseNumeric(entry.cgst) + parseNumeric(entry.sgst) + parseNumeric(entry.igst);
+      const totalVal = parseNumeric(entry.totalPrice) || (base + gst) || (qty * parseNumeric(entry.rateUom));
+
+      map[key].inwardQty += qtyInNative;
+      map[key].totalInwardValue += totalVal;
+
       if (entry.company && !map[key].sources.includes(entry.company)) {
         map[key].sources.push(entry.company);
       }
@@ -183,7 +187,8 @@ export default function Inventory() {
           inwardQty: 0,
           issuedQty: 0,
           currentStock: 0,
-          avgRate: 150,
+          avgRate: 0,
+          totalInwardValue: 0,
           totalValue: 0,
           reorderLevel: item.reorderLevel || 10,
           isLow: false,
@@ -227,7 +232,8 @@ export default function Inventory() {
           inwardQty: 0,
           issuedQty: convertedQty,
           currentStock: 0,
-          avgRate: 100,
+          avgRate: 0,
+          totalInwardValue: 0,
           totalValue: 0,
           reorderLevel: 10,
           isLow: true,
@@ -241,8 +247,16 @@ export default function Inventory() {
       item.inwardQty = Math.round((item.inwardQty + Number.EPSILON) * 100) / 100;
       item.issuedQty = Math.round((item.issuedQty + Number.EPSILON) * 100) / 100;
       item.currentStock = Math.round((Math.max(0, item.inwardQty - item.issuedQty) + Number.EPSILON) * 100) / 100;
-      item.avgRate = Math.round((item.avgRate + Number.EPSILON) * 100) / 100;
-      item.totalValue = Math.round((item.currentStock * (item.avgRate || 0) + Number.EPSILON) * 100) / 100;
+      
+      // Calculate weighted average rate per native unit from total inward valuation
+      if (item.inwardQty > 0 && item.totalInwardValue > 0) {
+        item.avgRate = item.totalInwardValue / item.inwardQty;
+      } else {
+        item.avgRate = 0;
+      }
+
+      // Valuation of currently available stock based on weighted average rate
+      item.totalValue = Math.round((item.currentStock * item.avgRate + Number.EPSILON) * 100) / 100;
       item.isLow = item.currentStock <= item.reorderLevel;
     });
 
@@ -438,7 +452,7 @@ export default function Inventory() {
     if (displayCurrent > 0) {
       displayRate = st.totalValue / displayCurrent;
     } else if (displayInward > 0) {
-      displayRate = st.totalValue / displayInward;
+      displayRate = st.totalInwardValue / displayInward;
     } else {
       displayRate = st.avgRate;
     }
