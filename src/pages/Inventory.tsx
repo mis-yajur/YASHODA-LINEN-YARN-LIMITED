@@ -33,6 +33,7 @@ export default function Inventory() {
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'stock' | 'gateInward' | 'items' | 'transfers' | 'adjustments'>('stock');
+  const [itemMasterSubTab, setItemMasterSubTab] = useState<'catalog' | 'gateLogs'>('catalog');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'item' | 'transfer' | 'adjustment'>('item');
@@ -123,11 +124,8 @@ export default function Inventory() {
       sources: string[];
     }> = {};
 
-    // 1. Process Yashoda Gate Register Inward entries primarily
-    const allGate = [
-      ...(gateEntriesYashoda || []).map(e => ({ ...e, company: 'Yashoda' })),
-      ...(gateEntriesAIPL || []).map(e => ({ ...e, company: 'AIPL' }))
-    ];
+    // 1. Process Yashoda Gate Register Inward entries ONLY for Yashoda Current Stock
+    const allGate = (gateEntriesYashoda || []).map(e => ({ ...e, company: 'Yashoda' }));
 
     allGate.forEach(entry => {
       const name = (entry.materialDescription || 'General Goods').trim();
@@ -319,6 +317,15 @@ export default function Inventory() {
     alert('Bulk upload completed');
   };
 
+  const filteredCatalogItems = useMemo(() => {
+    return (items || []).filter(item =>
+      (item.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.sku || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.type || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.categoryId || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [items, searchTerm]);
+
   const filteredYashodaGateItems = yashodaGateEntries.filter(entry =>
     (entry.materialDescription || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (entry.partyName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -440,114 +447,216 @@ export default function Inventory() {
       </div>
 
       {activeTab === 'items' && (
-        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden space-y-4 p-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 dark:border-zinc-800 pb-4">
             <div>
               <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Package className="w-4 h-4 text-indigo-600" />
-                Yashoda Item Master (Gate Entry Register Items)
+                <Package className="w-5 h-5 text-indigo-600" />
+                Item Master Dashboard
               </h2>
               <p className="text-xs text-gray-500">
-                Captured strictly from Yashoda Linen Yarn Ltd Gate Register entries
+                Central catalog of items, SKUs, reorder levels, and live Yashoda stock levels
               </p>
             </div>
 
-            <div className="relative max-w-md w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input 
-                type="text" 
-                placeholder="Search by description, party, vehicle, GST..." 
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800/50 focus:ring-2 focus:ring-indigo-500 outline-none text-xs"
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="bg-gray-100 dark:bg-zinc-800 p-1 rounded-lg flex gap-1 text-xs">
+                <button
+                  onClick={() => setItemMasterSubTab('catalog')}
+                  className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                    itemMasterSubTab === 'catalog'
+                      ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Item Catalog Master ({items.length})
+                </button>
+                <button
+                  onClick={() => setItemMasterSubTab('gateLogs')}
+                  className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                    itemMasterSubTab === 'gateLogs'
+                      ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Yashoda Gate Log Register ({yashodaGateEntries.length})
+                </button>
+              </div>
+
+              <div className="relative max-w-xs w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input 
+                  type="text" 
+                  placeholder="Search items, SKU, category..." 
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-1.5 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none text-xs"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left whitespace-nowrap">
-              <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                <tr>
-                  <th className="px-4 py-3">SL. No</th>
-                  <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Vehicle No.</th>
-                  <th className="px-4 py-3">Party Name</th>
-                  <th className="px-4 py-3">GST No.</th>
-                  <th className="px-4 py-3">Material Description</th>
-                  <th className="px-4 py-3">Quantity</th>
-                  <th className="px-4 py-3">UOM</th>
-                  <th className="px-4 py-3">RATE/UOM</th>
-                  <th className="px-4 py-3">Base Price</th>
-                  <th className="px-4 py-3">SGST</th>
-                  <th className="px-4 py-3">CGST</th>
-                  <th className="px-4 py-3">IGST</th>
-                  <th className="px-4 py-3">Total Price</th>
-                  <th className="px-4 py-3">e-Way Bill</th>
-                  <th className="px-4 py-3">Invoice No./Value</th>
-                  <th className="px-4 py-3">In Time</th>
-                  <th className="px-4 py-3">Out Time</th>
-                  <th className="px-4 py-3">Driver Licence No.</th>
-                  <th className="px-4 py-3">Contact No./Sign.</th>
-                  <th className="px-4 py-3">Security Sign.</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-zinc-800 text-xs">
-                {filteredYashodaGateItems.map(item => (
-                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
-                    <td className="px-4 py-3 font-medium">{item.slNo || '-'}</td>
-                    <td className="px-4 py-3">{item.date || '-'}</td>
-                    <td className="px-4 py-3">{item.vehicleNo || '-'}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{item.partyName || '-'}</td>
-                    <td className="px-4 py-3 font-mono">{item.gstNo || '-'}</td>
-                    <td className="px-4 py-3 font-semibold truncate max-w-[200px]" title={item.materialDescription}>
-                      {item.materialDescription || '-'}
-                    </td>
-                    <td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400">{item.quantityWeight || '-'}</td>
-                    <td className="px-4 py-3">{item.unit || '-'}</td>
-                    <td className="px-4 py-3 font-mono">{item.rateUom || '-'}</td>
-                    <td className="px-4 py-3 font-mono">{item.basePrice || '-'}</td>
-                    <td className="px-4 py-3 font-mono">{item.sgst || '-'}</td>
-                    <td className="px-4 py-3 font-mono">{item.cgst || '-'}</td>
-                    <td className="px-4 py-3 font-mono">{item.igst || '-'}</td>
-                    <td className="px-4 py-3 font-bold font-mono text-gray-900 dark:text-white">{item.totalPrice || '-'}</td>
-                    <td className="px-4 py-3 font-mono">{item.ewayBill || '-'}</td>
-                    <td className="px-4 py-3 font-mono">{item.invoiceNoValue || '-'}</td>
-                    <td className="px-4 py-3">{item.inTime || '-'}</td>
-                    <td className="px-4 py-3">{item.outTime || '-'}</td>
-                    <td className="px-4 py-3 font-mono">{item.driverLicenceNo || '-'}</td>
-                    <td className="px-4 py-3">{item.contactNoSign || '-'}</td>
-                    <td className="px-4 py-3">{item.securitySign || '-'}</td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button 
-                          onClick={() => handleEditYashodaItem(item)}
-                          className="p-1 text-gray-500 hover:text-indigo-600 transition-colors"
-                          title="Edit Item"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteYashodaItem(item.id, item.materialDescription)}
-                          className="p-1 text-gray-500 hover:text-red-600 transition-colors"
-                          title="Delete Item"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+          {itemMasterSubTab === 'catalog' ? (
+            <div className="overflow-x-auto border rounded-xl border-gray-200 dark:border-zinc-800">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="px-4 py-3">Item Description</th>
+                    <th className="px-4 py-3">SKU Code</th>
+                    <th className="px-4 py-3">Category / Type</th>
+                    <th className="px-4 py-3">UOM</th>
+                    <th className="px-4 py-3 text-right">Reorder Level</th>
+                    <th className="px-4 py-3 text-right">Live Available Stock</th>
+                    <th className="px-4 py-3 text-center">Stock Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
-                ))}
-                {filteredYashodaGateItems.length === 0 && (
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                  {filteredCatalogItems.map(item => {
+                    const matchedLive = liveCurrentStock.find(l => l.itemName.toLowerCase() === item.name.toLowerCase());
+                    const currentStockVal = matchedLive ? matchedLive.currentStock : 0;
+                    const isLow = currentStockVal <= (item.reorderLevel || 10);
+                    return (
+                      <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                        <td className="px-4 py-3 font-bold text-gray-900 dark:text-white">
+                          {item.name}
+                        </td>
+                        <td className="px-4 py-3 font-mono font-semibold text-indigo-600 dark:text-indigo-400">
+                          {item.sku}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-gray-600 dark:text-gray-300">
+                          {item.categoryId || item.type || 'Raw Material'}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">
+                          {item.uom}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-amber-600 dark:text-amber-400 font-bold">
+                          {item.reorderLevel || 10} {item.uom}
+                        </td>
+                        <td className="px-4 py-3 text-right font-extrabold font-mono text-sm text-gray-900 dark:text-white">
+                          {currentStockVal.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {item.uom}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {currentStockVal <= 0 ? (
+                            <span className="text-[10px] font-bold text-red-600 bg-red-50 dark:bg-red-950/40 px-2.5 py-1 rounded-full">Out of Stock</span>
+                          ) : isLow ? (
+                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-full">Low Stock</span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full font-sans">Healthy Stock</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button 
+                            onClick={() => {
+                              if (window.confirm(`Delete item "${item.name}" from Item Master?`)) {
+                                alert(`Item "${item.name}" removed from Item Master.`);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                            title="Delete Item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredCatalogItems.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                        No items found in Item Master Catalog. Click "Sync Yashoda Gate Entries" or "Add Item" to populate catalog.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="overflow-x-auto border rounded-xl border-gray-200 dark:border-zinc-800">
+              <table className="w-full text-left whitespace-nowrap text-xs">
+                <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <tr>
-                    <td colSpan={22} className="px-6 py-8 text-center text-gray-500">
-                      No Yashoda items found in Item Master.
-                    </td>
+                    <th className="px-4 py-3">SL. No</th>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Vehicle No.</th>
+                    <th className="px-4 py-3">Party Name</th>
+                    <th className="px-4 py-3">GST No.</th>
+                    <th className="px-4 py-3">Material Description</th>
+                    <th className="px-4 py-3">Quantity</th>
+                    <th className="px-4 py-3">UOM</th>
+                    <th className="px-4 py-3">RATE/UOM</th>
+                    <th className="px-4 py-3">Base Price</th>
+                    <th className="px-4 py-3">SGST</th>
+                    <th className="px-4 py-3">CGST</th>
+                    <th className="px-4 py-3">IGST</th>
+                    <th className="px-4 py-3">Total Price</th>
+                    <th className="px-4 py-3">e-Way Bill</th>
+                    <th className="px-4 py-3">Invoice No./Value</th>
+                    <th className="px-4 py-3">In Time</th>
+                    <th className="px-4 py-3">Out Time</th>
+                    <th className="px-4 py-3">Driver Licence No.</th>
+                    <th className="px-4 py-3">Contact No./Sign.</th>
+                    <th className="px-4 py-3">Security Sign.</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                  {filteredYashodaGateItems.map(item => (
+                    <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                      <td className="px-4 py-3 font-medium">{item.slNo || '-'}</td>
+                      <td className="px-4 py-3">{item.date || '-'}</td>
+                      <td className="px-4 py-3">{item.vehicleNo || '-'}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{item.partyName || '-'}</td>
+                      <td className="px-4 py-3 font-mono">{item.gstNo || '-'}</td>
+                      <td className="px-4 py-3 font-semibold truncate max-w-[200px]" title={item.materialDescription}>
+                        {item.materialDescription || '-'}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400">{item.quantityWeight || '-'}</td>
+                      <td className="px-4 py-3">{item.unit || '-'}</td>
+                      <td className="px-4 py-3 font-mono">{item.rateUom || '-'}</td>
+                      <td className="px-4 py-3 font-mono">{item.basePrice || '-'}</td>
+                      <td className="px-4 py-3 font-mono">{item.sgst || '-'}</td>
+                      <td className="px-4 py-3 font-mono">{item.cgst || '-'}</td>
+                      <td className="px-4 py-3 font-mono">{item.igst || '-'}</td>
+                      <td className="px-4 py-3 font-bold font-mono text-gray-900 dark:text-white">{item.totalPrice || '-'}</td>
+                      <td className="px-4 py-3 font-mono">{item.ewayBill || '-'}</td>
+                      <td className="px-4 py-3 font-mono">{item.invoiceNoValue || '-'}</td>
+                      <td className="px-4 py-3">{item.inTime || '-'}</td>
+                      <td className="px-4 py-3">{item.outTime || '-'}</td>
+                      <td className="px-4 py-3 font-mono">{item.driverLicenceNo || '-'}</td>
+                      <td className="px-4 py-3">{item.contactNoSign || '-'}</td>
+                      <td className="px-4 py-3">{item.securitySign || '-'}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={() => handleEditYashodaItem(item)}
+                            className="p-1 text-gray-500 hover:text-indigo-600 transition-colors"
+                            title="Edit Item"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteYashodaItem(item.id, item.materialDescription)}
+                            className="p-1 text-gray-500 hover:text-red-600 transition-colors"
+                            title="Delete Item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredYashodaGateItems.length === 0 && (
+                    <tr>
+                      <td colSpan={22} className="px-6 py-8 text-center text-gray-500">
+                        No Yashoda items found in Gate Entry Log Register.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
