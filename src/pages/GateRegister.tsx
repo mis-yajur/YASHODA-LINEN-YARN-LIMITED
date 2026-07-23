@@ -116,7 +116,7 @@ export default function GateRegister() {
             
             // Adjust mapping based on companyType
             let entry = {};
-            if (companyType === 'AIPL') {
+            if (true) {
               entry = {
                 companyType,
                 slNo: currentSlNo.toString(),
@@ -141,23 +141,6 @@ export default function GateRegister() {
                 contactNoSign: row[19] || '',
                 securitySign: row[20] || ''
               };
-            } else {
-              entry = {
-                companyType,
-                slNo: currentSlNo.toString(),
-                date: row[1] || '',
-                vehicleNo: row[2] || '',
-                partyName: row[3] || '',
-                materialDescription: row[4] || '',
-                quantityWeight: row[5] || '',
-                unit: row[6] || 'Kgs',
-                inTime: row[7] || '',
-                outTime: row[8] || '',
-                invoiceNoValue: row[9] || '',
-                driverLicenceNo: row[10] || '',
-                contactNoSign: row[11] || '',
-                securitySign: row[12] || ''
-              };
             }
             await addGateEntry(entry as any);
           }
@@ -174,17 +157,15 @@ export default function GateRegister() {
   };
 
   const handleExport = () => {
-    // Basic CSV export
-    const headers = ['SL. No', 'Date', 'Vehicle No.', 'Party Name', 'Material Description', 'Quantity & Weight', 'Unit', 'In Time', 'Out Time', 'Invoice No./Value', 'Driver Licence No.', 'Contact No.', 'Security Sign'];
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + headers.join(',') + '\n'
-      + filteredEntries.map(e => {
-        return `"${e.slNo}","${e.date}","${e.vehicleNo}","${e.partyName}","${e.materialDescription}","${e.quantityWeight}","${e.unit}","${e.inTime}","${e.outTime}","${e.invoiceNoValue}","${e.driverLicenceNo}","${e.contactNoSign}","${e.securitySign}"`;
-      }).join('\n');
+    const headers = ['SL', 'Date', 'Vehicle No.', 'Party Name', 'GST No.', 'Material Description', 'Quantity', 'UOM', 'RATE/UOM', 'Base Price', 'SGST', 'CGST', 'IGST', 'Total Price', 'e-Way Bill', 'Invoice No./Value', 'In Time', 'Out Time', 'Driver Licence No.', 'Contact No./Sign.', 'Security Sign.'];
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + '\n' + filteredEntries.map(e => 
+      `"${e.slNo}","${e.date}","${e.vehicleNo}","${e.partyName}","${e.gstNo}","${e.materialDescription}","${e.quantityWeight}","${e.unit}","${e.rateUom}","${e.basePrice}","${e.sgst}","${e.cgst}","${e.igst}","${e.totalPrice}","${e.ewayBill}","${e.invoiceNoValue}","${e.inTime}","${e.outTime}","${e.driverLicenceNo}","${e.contactNoSign}","${e.securitySign}"`
+    ).join('\n');
+
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "gate_register.csv");
+    link.setAttribute("download", `gate_register_${companyType}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -308,21 +289,17 @@ export default function GateRegister() {
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Vehicle No.</th>
                 <th className="px-4 py-3">Party Name</th>
-                {companyType === 'AIPL' && <th className="px-4 py-3">GST No.</th>}
+                <th className="px-4 py-3">GST No.</th>
                 <th className="px-4 py-3">Material Description</th>
                 <th className="px-4 py-3">Quantity</th>
                 <th className="px-4 py-3">UOM</th>
-                {companyType === 'AIPL' && (
-                  <>
-                    <th className="px-4 py-3">RATE/UOM</th>
+                <th className="px-4 py-3">RATE/UOM</th>
                     <th className="px-4 py-3">Base Price</th>
                     <th className="px-4 py-3">SGST</th>
                     <th className="px-4 py-3">CGST</th>
                     <th className="px-4 py-3">IGST</th>
                     <th className="px-4 py-3">Total Price</th>
                     <th className="px-4 py-3">e-Way Bill</th>
-                  </>
-                )}
                 <th className="px-4 py-3">Invoice No./Value</th>
                 <th className="px-4 py-3">In Time</th>
                 <th className="px-4 py-3">Out Time</th>
@@ -338,21 +315,17 @@ export default function GateRegister() {
                   <td className="px-4 py-3">{entry.date}</td>
                   <td className="px-4 py-3">{entry.vehicleNo || '-'}</td>
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{entry.partyName}</td>
-                  {companyType === 'AIPL' && <td className="px-4 py-3">{entry.gstNo || '-'}</td>}
+                  <td className="px-4 py-3">{entry.gstNo || '-'}</td>
                   <td className="px-4 py-3 truncate max-w-[200px]" title={entry.materialDescription}>{entry.materialDescription}</td>
                   <td className="px-4 py-3">{entry.quantityWeight}</td>
                   <td className="px-4 py-3">{entry.unit}</td>
-                  {companyType === 'AIPL' && (
-                    <>
-                      <td className="px-4 py-3">{entry.rateUom || '-'}</td>
+                  <td className="px-4 py-3">{entry.rateUom || '-'}</td>
                       <td className="px-4 py-3">{entry.basePrice || '-'}</td>
                       <td className="px-4 py-3">{entry.sgst || '-'}</td>
                       <td className="px-4 py-3">{entry.cgst || '-'}</td>
                       <td className="px-4 py-3">{entry.igst || '-'}</td>
                       <td className="px-4 py-3">{entry.totalPrice || '-'}</td>
                       <td className="px-4 py-3">{entry.ewayBill || '-'}</td>
-                    </>
-                  )}
                   <td className="px-4 py-3">{entry.invoiceNoValue || '-'}</td>
                   <td className="px-4 py-3">{entry.inTime || '-'}</td>
                   <td className="px-4 py-3">{entry.outTime || '-'}</td>
@@ -363,7 +336,7 @@ export default function GateRegister() {
               ))}
               {currentEntries.length === 0 && (
                 <tr>
-                  <td colSpan={companyType === 'AIPL' ? 20 : 12} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={21} className="px-4 py-8 text-center text-gray-500">
                     No entries found
                   </td>
                 </tr>
@@ -425,12 +398,10 @@ export default function GateRegister() {
                   <label className="block text-sm font-medium mb-1">Material Description</label>
                   <input required type="text" value={formData.materialDescription} onChange={e => setFormData({...formData, materialDescription: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
                 </div>
-                {companyType === 'AIPL' && (
-                  <div>
+                <div>
                     <label className="block text-sm font-medium mb-1">GST No.</label>
                     <input type="text" value={formData.gstNo} onChange={e => setFormData({...formData, gstNo: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
                   </div>
-                )}
                 <div>
                   <label className="block text-sm font-medium mb-1">Quantity</label>
                   <div className="flex gap-2">
@@ -445,9 +416,7 @@ export default function GateRegister() {
                     </select>
                   </div>
                 </div>
-                {companyType === 'AIPL' && (
-                  <>
-                    <div>
+                <div>
                       <label className="block text-sm font-medium mb-1">RATE/UOM</label>
                       <input type="text" value={formData.rateUom} onChange={e => setFormData({...formData, rateUom: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
                     </div>
@@ -475,8 +444,6 @@ export default function GateRegister() {
                       <label className="block text-sm font-medium mb-1">e-Way Bill</label>
                       <input type="text" value={formData.ewayBill} onChange={e => setFormData({...formData, ewayBill: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
                     </div>
-                  </>
-                )}
                 <div>
                   <label className="block text-sm font-medium mb-1">Invoice No. / Value</label>
                   <input type="text" value={formData.invoiceNoValue} onChange={e => setFormData({...formData, invoiceNoValue: e.target.value})} className="w-full p-2 border rounded dark:bg-zinc-800 dark:border-zinc-700" />
