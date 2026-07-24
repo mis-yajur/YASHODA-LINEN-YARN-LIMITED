@@ -9,10 +9,11 @@ import { AppProvider, useApp } from './context/AppContext';
 import { 
   LayoutDashboard, Package, MapPin, Users, ShoppingCart, 
   ScanLine, Menu, X, Bell, LogOut, Sun, Moon, Database, Settings, ArrowRightLeft,
-  CheckSquare, FileText
+  CheckSquare, FileText, Video
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { GlobalSearch } from './components/GlobalSearch';
+import { TutorialModal } from './components/TutorialModal';
 // Pages
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
@@ -29,6 +30,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const { initApp, isSyncing, user, login, logout } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
 
   useEffect(() => {
     initApp();
@@ -81,7 +83,16 @@ function Layout({ children }: { children: React.ReactNode }) {
               ))}
             </nav>
             
-            <div className="hidden lg:flex items-center ml-4 pl-4 border-l border-gray-200 dark:border-zinc-800 shrink-0">
+            <div className="hidden lg:flex items-center ml-4 pl-4 border-l border-gray-200 dark:border-zinc-800 shrink-0 gap-2">
+              <button 
+                onClick={() => setIsTutorialOpen(true)}
+                className="bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs"
+                title="Watch App Video Tutorial & Operating Guide"
+              >
+                <Video className="w-4 h-4 text-indigo-600 animate-pulse" />
+                <span>Video Tutorial</span>
+              </button>
+
               {isSyncing && <span className="text-xs text-gray-500 animate-pulse mr-2">Syncing...</span>}
               {user ? (
                 <button onClick={logout} className="p-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors">
@@ -102,8 +113,15 @@ function Layout({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* Mobile menu button */}
-            <div className="flex items-center lg:hidden shrink-0">
-              <div className="flex items-center mr-2">
+            <div className="flex items-center lg:hidden shrink-0 gap-1">
+              <button 
+                onClick={() => setIsTutorialOpen(true)}
+                className="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 border border-indigo-200 dark:border-indigo-800"
+              >
+                <Video className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Tutorial</span>
+              </button>
+              <div className="flex items-center">
                  {isSyncing && <span className="text-xs text-gray-500 animate-pulse mr-2">Syncing...</span>}
                  <button 
                     onClick={() => setDarkMode(!darkMode)}
@@ -127,6 +145,13 @@ function Layout({ children }: { children: React.ReactNode }) {
         {mobileMenuOpen && (
           <div className="lg:hidden bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 shadow-lg absolute w-full">
             <div className="px-2 pt-2 pb-3 space-y-1">
+              <button
+                onClick={() => { setMobileMenuOpen(false); setIsTutorialOpen(true); }}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-md text-base font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+              >
+                <Video className="w-5 h-5 text-indigo-600 shrink-0" />
+                🎥 Watch App Video Tutorial & Guide
+              </button>
               {navItems.map((item) => (
                 <Link
                   key={item.name}
@@ -147,6 +172,22 @@ function Layout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 w-full px-4 md:px-6 py-4">
         {children}
       </main>
+
+      {/* Floating Tutorial Action Launcher Button */}
+      <button
+        onClick={() => setIsTutorialOpen(true)}
+        className="fixed bottom-5 right-5 z-40 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white p-3.5 sm:px-4 sm:py-3 rounded-full shadow-2xl flex items-center gap-2 font-bold text-xs transition-transform hover:scale-105 active:scale-95 group border border-white/20"
+        title="App Video Tutorial & Operating Manual"
+      >
+        <Video className="w-5 h-5 shrink-0 animate-bounce" />
+        <span className="hidden sm:inline">Watch App Tutorial</span>
+      </button>
+
+      {/* Tutorial Modal */}
+      <TutorialModal 
+        isOpen={isTutorialOpen}
+        onClose={() => setIsTutorialOpen(false)}
+      />
     </div>
   );
 }
