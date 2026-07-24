@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Item } from '../types';
-import { Plus, Search, Edit2, Trash2, X, Package, ArrowRightLeft, Settings2, RefreshCw, Truck, CheckCircle2, IndianRupee } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, X, Package, ArrowRightLeft, Settings2, RefreshCw, Truck, CheckCircle2, IndianRupee, Download } from 'lucide-react';
 import { CSVUploader } from '../components/CSVUploader';
 import { convertUnitQuantity } from '../lib/utils';
 
@@ -124,7 +124,65 @@ export default function Inventory() {
     return Object.values(map);
   }, [activeGateEntries]);
 
-  // Dynamic Live Stock & Valuation: Gate Inwards (Addition) - Material Issues (Reduction)
+  // Explicit Yashoda Gate Register Inward pipeline (derived exclusively from GateEntries_Yashoda collection)
+  const yashodaGateInwardSummary = useMemo(() => {
+    const map: Record<string, {
+      materialDescription: string;
+      unit: string;
+      totalQty: number;
+      totalBasePrice: number;
+      totalGST: number;
+      totalValue: number;
+      entryCount: number;
+      partyNames: Set<string>;
+      lastDate: string;
+      companies: Set<string>;
+    }> = {};
+
+    (gateEntriesYashoda || []).forEach(entry => {
+      const matName = (entry.materialDescription || 'Unspecified Material').trim();
+      const key = matName.toLowerCase();
+
+      if (!map[key]) {
+        map[key] = {
+          materialDescription: matName,
+          unit: entry.unit || 'Units',
+          totalQty: 0,
+          totalBasePrice: 0,
+          totalGST: 0,
+          totalValue: 0,
+          entryCount: 0,
+          partyNames: new Set(),
+          lastDate: entry.date || '',
+          companies: new Set(['Yashoda Linen Yarn Ltd'])
+        };
+      }
+
+      const base = parseNumeric(entry.basePrice);
+      const gst = parseNumeric(entry.cgst) + parseNumeric(entry.sgst) + parseNumeric(entry.igst);
+      const total = parseNumeric(entry.totalPrice);
+      const qty = parseNumeric(entry.quantityWeight);
+
+      map[key].totalQty += qty;
+      map[key].totalBasePrice += base;
+      map[key].totalGST += gst;
+      map[key].totalValue += total;
+      map[key].entryCount += 1;
+      if (entry.partyName) map[key].partyNames.add(entry.partyName);
+      if (entry.date) map[key].lastDate = entry.date;
+    });
+
+    Object.values(map).forEach(item => {
+      item.totalQty = Math.round((item.totalQty + Number.EPSILON) * 100) / 100;
+      item.totalBasePrice = Math.round((item.totalBasePrice + Number.EPSILON) * 100) / 100;
+      item.totalGST = Math.round((item.totalGST + Number.EPSILON) * 100) / 100;
+      item.totalValue = Math.round((item.totalValue + Number.EPSILON) * 100) / 100;
+    });
+
+    return Object.values(map);
+  }, [gateEntriesYashoda]);
+
+  // Dynamic Live Stock & Valuation: Yashoda Gate Inwards (GateEntries_Yashoda) - Material Issues (Outward)
   const liveCurrentStock = useMemo(() => {
     const map: Record<string, {
       key: string;
@@ -144,8 +202,8 @@ export default function Inventory() {
       sources: string[];
     }> = {};
 
-    // 1. Process Yashoda Gate Register Inward entries from gateInwardStockSummary (authoritative source)
-    gateInwardStockSummary.forEach(sum => {
+    // 1. Process Yashoda Gate Register Inward entries from GateEntries_Yashoda
+    yashodaGateInwardSummary.forEach(sum => {
       const name = (sum.materialDescription || 'General Goods').trim();
       if (!name) return;
       const key = name.toLowerCase();
@@ -232,7 +290,7 @@ export default function Inventory() {
     });
 
     return Object.values(map);
-  }, [gateInwardStockSummary, items, materialIssueItems]);
+  }, [yashodaGateInwardSummary, items, materialIssueItems]);
 
   // Sync Gate Entries to Item Master & Current Stock
   const handleSyncGateEntriesToInventory = async () => {
@@ -484,6 +542,87 @@ export default function Inventory() {
     }
   };
 
+  const handleExportInventoryCSV = () => {
+    let headers: string[] = [];
+    let rows: string[][] = [];
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `inventory_${activeTab}_${selectedCompany}_${dateStr}.csv`;
+
+    if (activeTab === 'stock') {
+      headers = ['Item Description', 'Unit', 'Total Inward Qty', 'Total Issued Qty', 'Current Stock Qty', 'Avg Unit Rate (INR)', 'Total Valuation (INR)'];
+      rows = filteredLiveStock.map(st => {
+        const formatted = formatStockItemDisplay(st);
+        return [
+          `"${st.itemName}"`,
+          `"${formatted.displayUnit}"`,
+          `"${formatted.displayInward.toFixed(2)}"`,
+          `"${formatted.displayIssued.toFixed(2)}"`,
+          `"${formatted.displayCurrent.toFixed(2)}"`,
+          `"${st.avgRate ? st.avgRate.toFixed(2) : '0.00'}"`,
+          `"${st.totalValue ? st.totalValue.toFixed(2) : '0.00'}"`
+        ];
+      });
+    } else if (activeTab === 'gateInward') {
+      headers = ['Material Description', 'UOM', 'Gate Entry Count', 'Total Inward Qty', 'Base Price (INR)', 'GST Amount (INR)', 'Total Inward Value (INR)', 'Suppliers', 'Last Received Date'];
+      rows = filteredGateSummary.map(row => [
+        `"${row.materialDescription}"`,
+        `"${row.unit}"`,
+        `"${row.entryCount}"`,
+        `"${row.totalQty.toFixed(2)}"`,
+        `"${row.totalBasePrice.toFixed(2)}"`,
+        `"${row.totalGST.toFixed(2)}"`,
+        `"${row.totalValue.toFixed(2)}"`,
+        `"${Array.from(row.partyNames).join('; ')}"`,
+        `"${row.lastDate}"`
+      ]);
+    } else if (activeTab === 'items') {
+      headers = ['Item Description', 'SKU Code', 'Category / Type', 'UOM', 'Company Source'];
+      rows = filteredItemMasterList.map(item => [
+        `"${item.itemDescription}"`,
+        `"${item.skuCode}"`,
+        `"${item.categoryType}"`,
+        `"${item.uom}"`,
+        `"${item.company}"`
+      ]);
+    } else if (activeTab === 'transfers') {
+      headers = ['Transfer ID', 'Item Name', 'From Warehouse', 'To Warehouse', 'Quantity', 'Date'];
+      rows = (stockTransfers || []).map(st => {
+        const matchedItem = items.find(i => i.id === st.itemId);
+        return [
+          `"${st.id}"`,
+          `"${matchedItem?.name || st.itemId}"`,
+          `"${st.fromWarehouseId}"`,
+          `"${st.toWarehouseId}"`,
+          `"${st.quantity}"`,
+          `"${st.date}"`
+        ];
+      });
+    } else if (activeTab === 'adjustments') {
+      headers = ['Adjustment ID', 'Item Name', 'Warehouse', 'Type', 'Quantity', 'Reason', 'Date'];
+      rows = (stockAdjustments || []).map(sa => {
+        const matchedItem = items.find(i => i.id === sa.itemId);
+        return [
+          `"${sa.id}"`,
+          `"${matchedItem?.name || sa.itemId}"`,
+          `"${sa.warehouseId}"`,
+          `"${sa.type}"`,
+          `"${sa.quantity}"`,
+          `"${sa.reason || ''}"`,
+          `"${sa.date}"`
+        ];
+      });
+    }
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -535,6 +674,14 @@ export default function Inventory() {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
             Sync Gate Entries to Stock
+          </button>
+
+          <button
+            onClick={handleExportInventoryCSV}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-lg flex items-center gap-2 transition-colors text-xs font-semibold shadow-sm"
+            title="Export filtered/selected inventory data to CSV"
+          >
+            <Download className="w-3.5 h-3.5" /> Export Selection CSV
           </button>
 
           {activeTab === 'items' && (

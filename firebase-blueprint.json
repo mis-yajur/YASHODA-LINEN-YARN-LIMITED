@@ -72,9 +72,21 @@
     }
   },
   "firestore": {
-    "gateEntries": {
+    "GateEntries_Yashoda": {
       "schema": { "$ref": "#/entities/gateEntry" },
-      "description": "Collection of all gate entries."
+      "description": "Collection of Yashoda gate entries."
+    },
+    "GateEntries_AIPL": {
+      "schema": { "$ref": "#/entities/gateEntry" },
+      "description": "Collection of Contractor AIPL gate entries."
+    },
+    "gateEntriesYashoda": {
+      "schema": { "$ref": "#/entities/gateEntry" },
+      "description": "Collection of Yashoda gate entries."
+    },
+    "gateEntriesAIPL": {
+      "schema": { "$ref": "#/entities/gateEntry" },
+      "description": "Collection of Contractor AIPL gate entries."
     },
     "departments": {
       "schema": { "$ref": "#/entities/department" },

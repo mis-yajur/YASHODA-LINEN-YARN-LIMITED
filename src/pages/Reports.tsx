@@ -47,6 +47,22 @@ export default function Reports() {
   const [companyFilter, setCompanyFilter] = useState<'ALL' | 'Yashoda' | 'AIPL'>('ALL');
   const [dateFilter, setDateFilter] = useState<'all' | '7days' | '30days'>('all');
 
+  // Independent Date Range & Search Filters for Yashoda and AIPL tables
+  const [yashodaStartDate, setYashodaStartDate] = useState('');
+  const [yashodaEndDate, setYashodaEndDate] = useState('');
+  const [yashodaSearch, setYashodaSearch] = useState('');
+
+  const [aiplStartDate, setAiplStartDate] = useState('');
+  const [aiplEndDate, setAiplEndDate] = useState('');
+  const [aiplSearch, setAiplSearch] = useState('');
+
+  const parseVal = (v: any) => {
+    if (typeof v === 'number') return v;
+    if (!v) return 0;
+    const clean = String(v).replace(/[^0-9.]/g, '');
+    return parseFloat(clean) || 0;
+  };
+
   // Combined Gate Entries
   const allGateEntries = useMemo(() => {
     const yashoda = (gateEntriesYashoda || []).map(e => ({ ...e, companyType: 'Yashoda' as const }));
@@ -70,6 +86,123 @@ export default function Reports() {
 
     return list;
   }, [gateEntriesYashoda, gateEntriesAIPL, companyFilter, dateFilter]);
+
+  // High-Level Financial Metrics (Total Base Price, Total GST, Grand Total)
+  const gateMetrics = useMemo(() => {
+    let baseSum = 0;
+    let sgstSum = 0;
+    let cgstSum = 0;
+    let igstSum = 0;
+    let grandSum = 0;
+
+    allGateEntries.forEach(entry => {
+      const base = parseVal(entry.basePrice);
+      const sgst = parseVal(entry.sgst);
+      const cgst = parseVal(entry.cgst);
+      const igst = parseVal(entry.igst);
+      let total = parseVal(entry.totalPrice);
+
+      if (!total && (base || sgst || cgst || igst)) {
+        total = base + sgst + cgst + igst;
+      }
+
+      baseSum += base;
+      sgstSum += sgst;
+      cgstSum += cgst;
+      igstSum += igst;
+      grandSum += total;
+    });
+
+    const gstSum = sgstSum + cgstSum + igstSum;
+
+    return {
+      basePrice: Math.round((baseSum + Number.EPSILON) * 100) / 100,
+      gstAmount: Math.round((gstSum + Number.EPSILON) * 100) / 100,
+      sgst: Math.round((sgstSum + Number.EPSILON) * 100) / 100,
+      cgst: Math.round((cgstSum + Number.EPSILON) * 100) / 100,
+      igst: Math.round((igstSum + Number.EPSILON) * 100) / 100,
+      grandTotal: Math.round((grandSum + Number.EPSILON) * 100) / 100
+    };
+  }, [allGateEntries]);
+
+  // Mini Recharts Visualizations Data for High-Level Metric Cards
+  const gstBreakdownData = useMemo(() => [
+    { name: 'CGST', value: gateMetrics.cgst },
+    { name: 'SGST', value: gateMetrics.sgst },
+    { name: 'IGST', value: gateMetrics.igst }
+  ].filter(d => d.value > 0), [gateMetrics]);
+
+  const basePriceTrendData = useMemo(() => {
+    const map: Record<string, { date: string; base: number }> = {};
+    allGateEntries.forEach(entry => {
+      if (!entry.date) return;
+      const dateStr = entry.date.split(' ')[0] || entry.date;
+      if (!map[dateStr]) map[dateStr] = { date: dateStr, base: 0 };
+      map[dateStr].base += parseVal(entry.basePrice);
+    });
+    return Object.values(map).sort((a, b) => a.date.localeCompare(b.date)).slice(-8);
+  }, [allGateEntries]);
+
+  const grandTotalTrendData = useMemo(() => {
+    const map: Record<string, { date: string; total: number }> = {};
+    allGateEntries.forEach(entry => {
+      if (!entry.date) return;
+      const dateStr = entry.date.split(' ')[0] || entry.date;
+      if (!map[dateStr]) map[dateStr] = { date: dateStr, total: 0 };
+      map[dateStr].total += parseVal(entry.totalPrice) || (parseVal(entry.basePrice) + parseVal(entry.sgst) + parseVal(entry.cgst) + parseVal(entry.igst));
+    });
+    return Object.values(map).sort((a, b) => a.date.localeCompare(b.date)).slice(-8);
+  }, [allGateEntries]);
+
+  // Helper for parsing dates cleanly
+  const parseToYYYYMMDD = (dStr: string) => {
+    if (!dStr) return '';
+    if (dStr.includes('T')) dStr = dStr.split('T')[0];
+    const parts = dStr.trim().split(/[-/]/);
+    if (parts.length === 3) {
+      if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+    return dStr;
+  };
+
+  // Independently Filtered Yashoda Entries for Yashoda Table
+  const filteredYashodaEntries = useMemo(() => {
+    return (gateEntriesYashoda || []).filter(entry => {
+      const q = yashodaSearch.toLowerCase().trim();
+      const matchesSearch = !q ||
+        (entry?.partyName || '').toLowerCase().includes(q) ||
+        (entry?.materialDescription || '').toLowerCase().includes(q) ||
+        (entry?.vehicleNo || '').toLowerCase().includes(q);
+
+      if (!matchesSearch) return false;
+
+      const parsedDate = parseToYYYYMMDD(entry.date);
+      if (yashodaStartDate && parsedDate && parsedDate < yashodaStartDate) return false;
+      if (yashodaEndDate && parsedDate && parsedDate > yashodaEndDate) return false;
+
+      return true;
+    });
+  }, [gateEntriesYashoda, yashodaSearch, yashodaStartDate, yashodaEndDate]);
+
+  // Independently Filtered AIPL Entries for Contractor AIPL Table
+  const filteredAiplEntries = useMemo(() => {
+    return (gateEntriesAIPL || []).filter(entry => {
+      const q = aiplSearch.toLowerCase().trim();
+      const matchesSearch = !q ||
+        (entry?.partyName || '').toLowerCase().includes(q) ||
+        (entry?.materialDescription || '').toLowerCase().includes(q) ||
+        (entry?.vehicleNo || '').toLowerCase().includes(q);
+
+      if (!matchesSearch) return false;
+
+      const parsedDate = parseToYYYYMMDD(entry.date);
+      if (aiplStartDate && parsedDate && parsedDate < aiplStartDate) return false;
+      if (aiplEndDate && parsedDate && parsedDate > aiplEndDate) return false;
+
+      return true;
+    });
+  }, [gateEntriesAIPL, aiplSearch, aiplStartDate, aiplEndDate]);
 
   // Analytics: Gate Entries by Date Trend
   const gateEntriesByDate = useMemo(() => {
@@ -224,57 +357,101 @@ export default function Reports() {
       {/* GATE ENTRY REPORTS SECTION */}
       {activeCategory === 'gate' && (
         <div className="space-y-6">
-          {/* KPI Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm flex items-center justify-between">
-              <div>
-                <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Gate Entries</div>
-                <div className="text-2xl font-black text-gray-900 dark:text-white mt-1">{allGateEntries.length}</div>
-                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1 flex items-center gap-1">
-                  <ArrowUpRight className="w-3 h-3" /> Live Inward Activity
+          {/* High-Level Recharts Metric Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Total Base Price Card with Recharts Trend */}
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm space-y-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Base Price</div>
+                  <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+                    ₹{gateMetrics.basePrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5" />
                 </div>
               </div>
-              <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center">
-                <Truck className="w-6 h-6" />
+              <div className="h-16 pt-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={basePriceTrendData}>
+                    <Bar dataKey="base" fill="#6366F1" radius={[3, 3, 0, 0]} />
+                    <Tooltip formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, 'Base Price']} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm flex items-center justify-between">
-              <div>
-                <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Inward Value</div>
-                <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-                  ₹{totalInwardValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+            {/* Total GST Card with Recharts Pie Breakdown */}
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm space-y-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total GST</div>
+                  <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
+                    ₹{gateMetrics.gstAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                  <div className="text-[10px] text-gray-500 font-medium">
+                    SGST: ₹{gateMetrics.sgst.toLocaleString()} | CGST: ₹{gateMetrics.cgst.toLocaleString()} | IGST: ₹{gateMetrics.igst.toLocaleString()}
+                  </div>
                 </div>
-                <div className="text-[10px] text-gray-400 mt-1">Across all registered bills</div>
+                <div className="w-10 h-10 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center">
+                  <Sparkles className="w-5 h-5" />
+                </div>
               </div>
-              <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center">
-                <TrendingUp className="w-6 h-6" />
+              <div className="h-16 pt-1 flex items-center justify-center">
+                {gstBreakdownData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={gstBreakdownData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={15}
+                        outerRadius={28}
+                        dataKey="value"
+                      >
+                        {gstBreakdownData.map((_, idx) => (
+                          <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, 'Tax']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-[11px] text-gray-400">No Tax breakdown</div>
+                )}
               </div>
             </div>
 
-            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm flex items-center justify-between">
-              <div>
-                <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Yashoda Entries</div>
-                <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
-                  {(gateEntriesYashoda || []).length}
+            {/* Grand Total Card with Recharts Area Trend */}
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm space-y-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Grand Total</div>
+                  <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                    ₹{gateMetrics.grandTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                  <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-0.5">
+                    <ArrowUpRight className="w-3 h-3" /> Base + Applicable Taxes
+                  </div>
                 </div>
-                <div className="text-[10px] text-gray-400 mt-1">Yashoda Linen Yarn Ltd</div>
-              </div>
-              <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center">
-                <Building2 className="w-6 h-6" />
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm flex items-center justify-between">
-              <div>
-                <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Contractor AIPL Entries</div>
-                <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
-                  {(gateEntriesAIPL || []).length}
+                <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5" />
                 </div>
-                <div className="text-[10px] text-gray-400 mt-1">Contractor AIPL Register</div>
               </div>
-              <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center">
-                <User className="w-6 h-6" />
+              <div className="h-16 pt-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={grandTotalTrendData}>
+                    <defs>
+                      <linearGradient id="grandGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey="total" stroke="#10B981" fill="url(#grandGrad)" />
+                    <Tooltip formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, 'Grand Total']} />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
@@ -336,67 +513,177 @@ export default function Reports() {
             </div>
           </div>
 
-          {/* Material Category Distribution Donut Chart & Table */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-800">
-              <h2 className="font-bold text-base text-gray-900 dark:text-white mb-2">Material Distribution</h2>
-              <p className="text-xs text-gray-500 mb-4">Top material categories received</p>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={materialDistData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={85}
-                      paddingAngle={4}
-                      dataKey="value"
-                    >
-                      {materialDistData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: '#18181B', borderColor: '#27272A', borderRadius: '12px', color: '#FFF' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+          {/* INDEPENDENT DATA TABLES WITH INDEPENDENT DATE RANGE FILTERING */}
+          <div className="space-y-6">
+            {/* Table 1: Yashoda Linen Yarn Ltd Data Table */}
+            <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-950/50 space-y-4">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-3 border-b border-gray-100 dark:border-zinc-800">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-indigo-600" />
+                    <h2 className="font-bold text-base text-gray-900 dark:text-white">Yashoda Linen Yarn Ltd - Data Table</h2>
+                  </div>
+                  <p className="text-xs text-gray-500">Exclusively filtered Yashoda gate inward entries ({filteredYashodaEntries.length} records)</p>
+                </div>
 
-            <div className="lg:col-span-2 bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-800">
-              <h2 className="font-bold text-base text-gray-900 dark:text-white mb-4">Recent Gate Entries Audit Trail</h2>
+                {/* Independent Date Range & Search Controls for Yashoda */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1 bg-gray-50 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs">
+                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-gray-500 font-medium">From:</span>
+                    <input 
+                      type="date" 
+                      value={yashodaStartDate} 
+                      onChange={e => setYashodaStartDate(e.target.value)} 
+                      className="bg-transparent text-gray-800 dark:text-gray-200 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 bg-gray-50 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs">
+                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-gray-500 font-medium">To:</span>
+                    <input 
+                      type="date" 
+                      value={yashodaEndDate} 
+                      onChange={e => setYashodaEndDate(e.target.value)} 
+                      className="bg-transparent text-gray-800 dark:text-gray-200 focus:outline-none"
+                    />
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="Search Yashoda..." 
+                    value={yashodaSearch} 
+                    onChange={e => setYashodaSearch(e.target.value)}
+                    className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 px-3 py-1.5 rounded-lg text-xs focus:outline-none text-gray-800 dark:text-gray-200 w-36"
+                  />
+                  {(yashodaStartDate || yashodaEndDate || yashodaSearch) && (
+                    <button 
+                      onClick={() => { setYashodaStartDate(''); setYashodaEndDate(''); setYashodaSearch(''); }}
+                      className="text-xs text-red-500 hover:underline px-1"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-left whitespace-nowrap text-xs">
-                  <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-gray-500 font-semibold">
+                  <thead className="bg-indigo-50/50 dark:bg-indigo-950/30 border-b border-indigo-100 dark:border-indigo-900/40 text-indigo-900 dark:text-indigo-200 font-semibold">
                     <tr>
                       <th className="p-3">SL No</th>
-                      <th className="p-3">Company</th>
                       <th className="p-3">Date</th>
                       <th className="p-3">Party Name</th>
                       <th className="p-3">Material Description</th>
-                      <th className="p-3">Quantity</th>
+                      <th className="p-3">Qty / Weight</th>
+                      <th className="p-3">Base Price</th>
+                      <th className="p-3">GST</th>
                       <th className="p-3">Total Price</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                    {allGateEntries.slice(0, 7).map((entry, idx) => (
-                      <tr key={entry.id || idx} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50">
-                        <td className="p-3 font-mono">{entry.slNo || '-'}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${entry.companyType === 'Yashoda' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}`}>
-                            {entry.companyType}
-                          </span>
-                        </td>
-                        <td className="p-3">{entry.date}</td>
-                        <td className="p-3 font-medium text-gray-900 dark:text-gray-100">{entry.partyName}</td>
-                        <td className="p-3 truncate max-w-[150px]">{entry.materialDescription}</td>
-                        <td className="p-3 font-bold text-emerald-600">{entry.quantityWeight} {entry.unit}</td>
-                        <td className="p-3 font-mono font-bold">{entry.totalPrice || '-'}</td>
+                    {filteredYashodaEntries.slice(0, 15).map((entry, idx) => (
+                      <tr key={entry.id || idx} className="hover:bg-indigo-50/30 dark:hover:bg-zinc-800/50">
+                        <td className="p-3 font-mono font-medium">{entry.slNo || '-'}</td>
+                        <td className="p-3 text-gray-600 dark:text-gray-400">{entry.date}</td>
+                        <td className="p-3 font-semibold text-gray-900 dark:text-gray-100">{entry.partyName}</td>
+                        <td className="p-3 text-gray-700 dark:text-gray-300">{entry.materialDescription}</td>
+                        <td className="p-3 font-bold text-indigo-600 dark:text-indigo-400">{entry.quantityWeight} {entry.unit}</td>
+                        <td className="p-3 font-mono">₹{parseVal(entry.basePrice).toLocaleString()}</td>
+                        <td className="p-3 font-mono text-amber-600 dark:text-amber-400">₹{(parseVal(entry.sgst) + parseVal(entry.cgst) + parseVal(entry.igst)).toLocaleString()}</td>
+                        <td className="p-3 font-mono font-bold text-emerald-600 dark:text-emerald-400">₹{parseVal(entry.totalPrice).toLocaleString()}</td>
                       </tr>
                     ))}
-                    {allGateEntries.length === 0 && (
+                    {filteredYashodaEntries.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="p-6 text-center text-gray-500">No gate entries logged.</td>
+                        <td colSpan={8} className="p-6 text-center text-gray-500">No Yashoda entries match the active date range / filter.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Table 2: Contractor AIPL Data Table */}
+            <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-amber-100 dark:border-amber-950/50 space-y-4">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-3 border-b border-gray-100 dark:border-zinc-800">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <User className="w-5 h-5 text-amber-600" />
+                    <h2 className="font-bold text-base text-gray-900 dark:text-white">Contractor AIPL Store - Data Table</h2>
+                  </div>
+                  <p className="text-xs text-gray-500">Exclusively filtered Contractor AIPL entries ({filteredAiplEntries.length} records)</p>
+                </div>
+
+                {/* Independent Date Range & Search Controls for Contractor AIPL */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1 bg-gray-50 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs">
+                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-gray-500 font-medium">From:</span>
+                    <input 
+                      type="date" 
+                      value={aiplStartDate} 
+                      onChange={e => setAiplStartDate(e.target.value)} 
+                      className="bg-transparent text-gray-800 dark:text-gray-200 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 bg-gray-50 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs">
+                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-gray-500 font-medium">To:</span>
+                    <input 
+                      type="date" 
+                      value={aiplEndDate} 
+                      onChange={e => setAiplEndDate(e.target.value)} 
+                      className="bg-transparent text-gray-800 dark:text-gray-200 focus:outline-none"
+                    />
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="Search AIPL..." 
+                    value={aiplSearch} 
+                    onChange={e => setAiplSearch(e.target.value)}
+                    className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 px-3 py-1.5 rounded-lg text-xs focus:outline-none text-gray-800 dark:text-gray-200 w-36"
+                  />
+                  {(aiplStartDate || aiplEndDate || aiplSearch) && (
+                    <button 
+                      onClick={() => { setAiplStartDate(''); setAiplEndDate(''); setAiplSearch(''); }}
+                      className="text-xs text-red-500 hover:underline px-1"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left whitespace-nowrap text-xs">
+                  <thead className="bg-amber-50/50 dark:bg-amber-950/30 border-b border-amber-100 dark:border-amber-900/40 text-amber-900 dark:text-amber-200 font-semibold">
+                    <tr>
+                      <th className="p-3">SL No</th>
+                      <th className="p-3">Date</th>
+                      <th className="p-3">Party Name</th>
+                      <th className="p-3">Material Description</th>
+                      <th className="p-3">Qty / Weight</th>
+                      <th className="p-3">Base Price</th>
+                      <th className="p-3">GST</th>
+                      <th className="p-3">Total Price</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                    {filteredAiplEntries.slice(0, 15).map((entry, idx) => (
+                      <tr key={entry.id || idx} className="hover:bg-amber-50/30 dark:hover:bg-zinc-800/50">
+                        <td className="p-3 font-mono font-medium">{entry.slNo || '-'}</td>
+                        <td className="p-3 text-gray-600 dark:text-gray-400">{entry.date}</td>
+                        <td className="p-3 font-semibold text-gray-900 dark:text-gray-100">{entry.partyName}</td>
+                        <td className="p-3 text-gray-700 dark:text-gray-300">{entry.materialDescription}</td>
+                        <td className="p-3 font-bold text-amber-600 dark:text-amber-400">{entry.quantityWeight} {entry.unit}</td>
+                        <td className="p-3 font-mono">₹{parseVal(entry.basePrice).toLocaleString()}</td>
+                        <td className="p-3 font-mono text-amber-600 dark:text-amber-400">₹{(parseVal(entry.sgst) + parseVal(entry.cgst) + parseVal(entry.igst)).toLocaleString()}</td>
+                        <td className="p-3 font-mono font-bold text-emerald-600 dark:text-emerald-400">₹{parseVal(entry.totalPrice).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                    {filteredAiplEntries.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="p-6 text-center text-gray-500">No Contractor AIPL entries match the active date range / filter.</td>
                       </tr>
                     )}
                   </tbody>

@@ -93,7 +93,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const collections = [
       'users',
       'departments', 'suppliers', 'items', 'warehouses', 'stock',
-      'materialIssues', 'materialIssueItems', 'gateEntriesYashoda', 'gateEntriesAIPL', 'prs',
+      'materialIssues', 'materialIssueItems', 'prs',
       'pos', 'grns', 'stockTransfers', 'stockAdjustments'
     ];
     
@@ -104,6 +104,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, coll);
       });
+    });
+
+    // Listen to GateEntries_Yashoda collection (and legacy gateEntriesYashoda)
+    onSnapshot(collection(db, 'GateEntries_Yashoda'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setState(s => ({ ...s, gateEntriesYashoda: data as any }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'GateEntries_Yashoda');
+    });
+
+    // Listen to GateEntries_AIPL collection
+    onSnapshot(collection(db, 'GateEntries_AIPL'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setState(s => ({ ...s, gateEntriesAIPL: data as any }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'GateEntries_AIPL');
     });
   };
 
@@ -195,11 +211,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const updateWarehouse = async (id: string, data: Partial<Warehouse>) => firestoreUpdate('warehouses', id, data);
   const deleteWarehouse = async (id: string) => firestoreDelete('warehouses', id);
   const addSupplier = async (sup: Omit<Supplier, 'id'>) => firestoreAdd('suppliers', sup);
-    const addGateEntry = async (entry: Omit<GateEntry, 'id'>, type: 'Yashoda' | 'AIPL') => firestoreAdd(type === 'Yashoda' ? 'gateEntriesYashoda' : 'gateEntriesAIPL', entry);
-  const updateGateEntry = async (id: string, data: Partial<GateEntry>, type: 'Yashoda' | 'AIPL') => firestoreUpdate(type === 'Yashoda' ? 'gateEntriesYashoda' : 'gateEntriesAIPL', id, data);
-  const deleteGateEntry = async (id: string, type: 'Yashoda' | 'AIPL') => firestoreDelete(type === 'Yashoda' ? 'gateEntriesYashoda' : 'gateEntriesAIPL', id);
+    const addGateEntry = async (entry: Omit<GateEntry, 'id'>, type: 'Yashoda' | 'AIPL') => firestoreAdd(type === 'Yashoda' ? 'GateEntries_Yashoda' : 'GateEntries_AIPL', entry);
+  const updateGateEntry = async (id: string, data: Partial<GateEntry>, type: 'Yashoda' | 'AIPL') => firestoreUpdate(type === 'Yashoda' ? 'GateEntries_Yashoda' : 'GateEntries_AIPL', id, data);
+  const deleteGateEntry = async (id: string, type: 'Yashoda' | 'AIPL') => firestoreDelete(type === 'Yashoda' ? 'GateEntries_Yashoda' : 'GateEntries_AIPL', id);
   const clearAllGateEntries = async (type: 'Yashoda' | 'AIPL') => {
-    const coll = type === 'Yashoda' ? 'gateEntriesYashoda' : 'gateEntriesAIPL';
+    const coll = type === 'Yashoda' ? 'GateEntries_Yashoda' : 'GateEntries_AIPL';
     const querySnapshot = await getDocs(collection(db, coll));
     const batch = writeBatch(db);
     querySnapshot.forEach((docSnap) => {
