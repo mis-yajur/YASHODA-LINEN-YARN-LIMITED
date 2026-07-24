@@ -5,7 +5,47 @@ import { convertUnitQuantity, parseDateToYYYYMMDD } from '../lib/utils';
 import { UnitConverterModal } from '../components/UnitConverterModal';
 
 export default function MaterialIssue() {
-  const { departments = [], items = [], stock = [], materialIssues = [], materialIssueItems = [], issueMaterial, updateMaterialIssue, deleteMaterialIssue } = useApp();
+  const { departments = [], items = [], stock = [], materialIssues = [], materialIssueItems = [], gateEntriesYashoda = [], issueMaterial, updateMaterialIssue, deleteMaterialIssue } = useApp();
+
+  // Yashoda Store Table 41 exclusive item catalog for Material Issue
+  const yashodaStoreItems = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; sku: string; uom: string }>();
+
+    // 1. Populate directly from active Yashoda Store Gate Entry Inwards (Table 41)
+    (gateEntriesYashoda || []).forEach(entry => {
+      const matName = (entry.materialDescription || '').trim();
+      if (!matName) return;
+      const key = matName.toLowerCase();
+
+      if (!map.has(key)) {
+        const matched = items.find(i => i.name.trim().toLowerCase() === key);
+        map.set(key, {
+          id: matched?.id || entry.id || ('yash-' + key),
+          name: matName,
+          sku: matched?.sku || ('YASH-' + matName.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X')),
+          uom: entry.unit || matched?.uom || 'Kgs'
+        });
+      }
+    });
+
+    // 2. Map existing catalog items if present
+    (items || []).forEach(item => {
+      const matName = (item.name || '').trim();
+      if (!matName) return;
+      const key = matName.toLowerCase();
+
+      if (!map.has(key)) {
+        map.set(key, {
+          id: item.id,
+          name: item.name,
+          sku: item.sku || ('SKU-' + item.id.substring(0, 5)),
+          uom: item.uom || 'Kgs'
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [gateEntriesYashoda, items]);
   const [activeTab, setActiveTab] = useState<'issue' | 'history' | 'requisition' | 'returns'>('issue');
 
   const [departmentId, setDepartmentId] = useState('');
@@ -125,7 +165,7 @@ export default function MaterialIssue() {
 
   const handleSelectItemChange = (itemId: string) => {
     setSelectedItem(itemId);
-    const matched = items.find(i => i.id === itemId);
+    const matched = yashodaStoreItems.find(i => i.id === itemId) || items.find(i => i.id === itemId);
     if (matched?.uom) {
       setIssueUnit(matched.uom);
     } else {
@@ -134,8 +174,8 @@ export default function MaterialIssue() {
   };
 
   const selectedItemObj = useMemo(() => {
-    return items.find(i => i.id === selectedItem);
-  }, [items, selectedItem]);
+    return yashodaStoreItems.find(i => i.id === selectedItem) || items.find(i => i.id === selectedItem);
+  }, [yashodaStoreItems, items, selectedItem]);
 
   const convertedQuantityPreview = useMemo(() => {
     if (!selectedItemObj) return null;
@@ -264,15 +304,20 @@ export default function MaterialIssue() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-2xl">
-            <ArrowRightLeft className="w-6 h-6" />
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-2xl">
+              <ArrowRightLeft className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-black text-gray-900 dark:text-white">Department Material Management</h1>
+                <span className="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
+                  Yashoda Store Table ({gateEntriesYashoda.length} Inwards)
+                </span>
+              </div>
+              <p className="text-xs text-gray-500">Issue store materials to mill departments, view history logs & track stock consumption</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-gray-900 dark:text-white">Department Material Management</h1>
-            <p className="text-xs text-gray-500">Issue store materials to mill departments, view history logs & track stock consumption</p>
-          </div>
-        </div>
 
         <button
           onClick={() => setActiveTab('issue')}
@@ -341,13 +386,12 @@ export default function MaterialIssue() {
                     <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Select Material / Item</label>
                     <select value={selectedItem} onChange={e => handleSelectItemChange(e.target.value)} className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 text-xs outline-none font-medium">
                       <option value="">Search & Select Item...</option>
-                      {(items || []).map(item => {
-                        const currentStock = (stock || []).filter(s => s.itemId === item.id).reduce((sum, s) => sum + (s.quantity || 0), 0);
+                      {yashodaStoreItems.map(item => {
                         return (
                           <option key={item.id} value={item.id}>
                             {item.name} ({item.sku}) - Base UOM: {item.uom || 'Kgs'}
                           </option>
-                        )
+                        );
                       })}
                     </select>
                   </div>

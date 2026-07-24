@@ -51,26 +51,18 @@ export default function Inventory() {
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [selectedStockIds, setSelectedStockIds] = useState<string[]>([]);
 
-  // Process Gate Entries for Inventory Inward Stock and Item Master (Yashoda & Contractor AIPL Store)
+  // Process Gate Entries for Inventory Inward Stock and Item Master (exclusively Yashoda Store Table)
   const allGateEntries = useMemo(() => {
-    const yashoda = (gateEntriesYashoda || []).map(e => ({ 
+    return (gateEntriesYashoda || []).map(e => ({ 
       ...e, 
       companyType: 'Yashoda' as const,
       companyLabel: 'Yashoda Linen Yarn Ltd'
     }));
-    const aipl = (gateEntriesAIPL || []).map(e => ({ 
-      ...e, 
-      companyType: 'AIPL' as const,
-      companyLabel: 'Contractor AIPL Store'
-    }));
-    return [...yashoda, ...aipl];
-  }, [gateEntriesYashoda, gateEntriesAIPL]);
+  }, [gateEntriesYashoda]);
 
   const activeGateEntries = useMemo(() => {
-    if (selectedCompany === 'Yashoda') return allGateEntries.filter(e => e.companyType === 'Yashoda');
-    if (selectedCompany === 'AIPL') return allGateEntries.filter(e => e.companyType === 'AIPL');
     return allGateEntries;
-  }, [allGateEntries, selectedCompany]);
+  }, [allGateEntries]);
 
   // Aggregate Gate Entries by Material Description for Inward Stock based on selected company
   const gateInwardStockSummary = useMemo(() => {
@@ -636,42 +628,14 @@ export default function Inventory() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Inventory & Stock Management</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Manage stock levels, Item Masters, and Gate Entry inward receipts across Yashoda & Contractor AIPL Store</p>
+          <p className="text-xs text-gray-500 mt-0.5">Manage stock levels, Item Masters, and Gate Entry inward receipts (Exclusively Yashoda Store Table)</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Company Selector Button Group */}
-          <div className="flex items-center bg-gray-100 dark:bg-zinc-800 p-1 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs font-medium">
-            <button
-              onClick={() => setSelectedCompany('All')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                selectedCompany === 'All'
-                  ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 font-bold shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
-              }`}
-            >
-              All Companies ({allGateEntries.length})
-            </button>
-            <button
-              onClick={() => setSelectedCompany('Yashoda')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                selectedCompany === 'Yashoda'
-                  ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 font-bold shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
-              }`}
-            >
-              Yashoda ({gateEntriesYashoda.length})
-            </button>
-            <button
-              onClick={() => setSelectedCompany('AIPL')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                selectedCompany === 'AIPL'
-                  ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 font-bold shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
-              }`}
-            >
-              Contractor AIPL ({gateEntriesAIPL.length})
-            </button>
+          {/* Yashoda Store Source Indicator Badge */}
+          <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-3 py-1.5 rounded-xl text-xs font-bold shadow-2xs">
+            <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span>Yashoda Store Table ({gateEntriesYashoda.length} Inward Receipts)</span>
           </div>
 
           <button 
