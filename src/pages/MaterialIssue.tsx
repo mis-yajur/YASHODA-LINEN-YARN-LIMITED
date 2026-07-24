@@ -153,7 +153,7 @@ export default function MaterialIssue() {
     let list = (materialIssues || []).map(issue => {
       const itemsForIssue = (materialIssueItems || []).filter(mi => mi.issueId === issue.id);
       return { ...issue, items: itemsForIssue };
-    }).reverse();
+    });
 
     if (selectedDeptFilter !== 'ALL') {
       list = list.filter(i => i.departmentId === selectedDeptFilter);

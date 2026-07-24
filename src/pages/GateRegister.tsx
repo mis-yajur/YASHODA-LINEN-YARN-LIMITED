@@ -93,7 +93,7 @@ export default function GateRegister() {
     securitySign: ''
   });
 
-  const allEntries = [...(companyType === 'Yashoda' ? (gateEntriesYashoda || []) : (gateEntriesAIPL || []))].reverse();
+  const allEntries = [...(companyType === 'Yashoda' ? (gateEntriesYashoda || []) : (gateEntriesAIPL || []))];
 
   const filteredEntries = (allEntries || []).filter(entry => {
     const matchesSearch = 
