@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Package, IndianRupee, ArrowRightLeft, TrendingUp, ArrowRight, Calendar, Filter, Building2, Receipt, ShieldCheck, Truck, Activity } from 'lucide-react';
+import { Package, IndianRupee, ArrowRightLeft, TrendingUp, ArrowRight, Calendar, Filter, Building2, Receipt, ShieldCheck, Truck, Activity, Layers, FileText, CheckCircle2 } from 'lucide-react';
 import { KraPerformanceModal } from '../components/KraPerformanceModal';
 
 function parseNumeric(val: string | number | undefined): number {
@@ -30,7 +30,7 @@ function parseEntryDate(dateStr: string | undefined): Date | null {
 }
 
 export default function Dashboard() {
-  const { stock = [], items = [], materialIssues = [], gateEntriesYashoda = [], gateEntriesAIPL = [] } = useApp();
+  const { stock = [], items = [], materialIssues = [], materialIssueItems = [], departments = [], gateEntriesYashoda = [], gateEntriesAIPL = [] } = useApp();
 
   // Filters
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
@@ -165,6 +165,67 @@ export default function Dashboard() {
 
     return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
   }, [filteredGateEntries]);
+
+  // Department Material Issues & Outward Consumption Statistics
+  const materialIssueStats = useMemo(() => {
+    const totalIssuesCount = (materialIssues || []).length;
+    let totalQtyIssued = 0;
+    let totalItemsIssuedCount = (materialIssueItems || []).length;
+
+    // Map department IDs/names
+    const deptMap: Record<string, { id: string; name: string; count: number; totalQty: number }> = {};
+
+    (departments || []).forEach(d => {
+      deptMap[d.id] = { id: d.id, name: d.name, count: 0, totalQty: 0 };
+    });
+
+    (materialIssues || []).forEach(issue => {
+      const dId = issue.departmentId || 'General';
+      const deptObj = (departments || []).find(d => d.id === dId || d.name === dId);
+      const deptName = deptObj ? deptObj.name : dId;
+
+      if (!deptMap[dId]) {
+        deptMap[dId] = { id: dId, name: deptName, count: 0, totalQty: 0 };
+      }
+      deptMap[dId].count += 1;
+
+      // Find items from materialIssueItems
+      const relatedItems = (materialIssueItems || []).filter(item => item.issueId === issue.id);
+      relatedItems.forEach(item => {
+        const q = parseNumeric(item.quantity);
+        totalQtyIssued += q;
+        deptMap[dId].totalQty += q;
+      });
+
+      // Also support inline items array on issue if present
+      if (Array.isArray((issue as any).items)) {
+        (issue as any).items.forEach((it: any) => {
+          if (!relatedItems.some(r => r.itemId === it.itemId)) {
+            const q = parseNumeric(it.quantity);
+            totalQtyIssued += q;
+            deptMap[dId].totalQty += q;
+            totalItemsIssuedCount += 1;
+          }
+        });
+      }
+    });
+
+    const activeDepts = Object.values(deptMap).filter(d => d.count > 0 || d.totalQty > 0);
+
+    return {
+      totalIssuesCount,
+      totalItemsIssuedCount,
+      totalQtyIssued,
+      activeDepts,
+      recentIssues: (materialIssues || []).slice(-6).reverse()
+    };
+  }, [materialIssues, materialIssueItems, departments]);
+
+  const departmentIssueChartData = useMemo(() => {
+    return materialIssueStats.activeDepts
+      .map(d => ({ name: d.name.length > 18 ? d.name.substring(0, 18) + '...' : d.name, quantity: d.totalQty, count: d.count }))
+      .sort((a, b) => b.quantity - a.quantity);
+  }, [materialIssueStats]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val);
@@ -431,6 +492,155 @@ export default function Dashboard() {
               No Gate Entry transactions found for the selected date range.
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Department Material Issues & Outward Consumption Analytics */}
+      <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-zinc-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-bold flex items-center gap-2 text-gray-900 dark:text-white">
+              <ArrowRightLeft className="w-5 h-5 text-amber-500" />
+              Department Material Issue & Consumption Overview
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Live outward stock issues, department requisitions, and consumption distribution
+            </p>
+          </div>
+          <Link 
+            to="/material-issue" 
+            className="text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 hover:bg-amber-100 transition-colors self-start md:self-auto"
+          >
+            Go to Material Issue Module →
+          </Link>
+        </div>
+
+        {/* 4 Summary Cards for Material Issues */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <FinancialCard 
+            title="Total Issue Vouchers" 
+            value={`${materialIssueStats.totalIssuesCount} Vouchers`} 
+            subtitle="Approved Department Requisitions"
+            color="border-l-4 border-l-amber-500"
+            badge="Issue Vouchers"
+          />
+          <FinancialCard 
+            title="Total Quantity Issued" 
+            value={`${materialIssueStats.totalQtyIssued.toLocaleString('en-IN')} units`} 
+            subtitle="Outward Issued from Yashoda Store"
+            color="border-l-4 border-l-indigo-500"
+            badge="Outward Qty"
+            isPrimary
+          />
+          <FinancialCard 
+            title="Line Items Issued" 
+            value={`${materialIssueStats.totalItemsIssuedCount} Items`} 
+            subtitle="Individual Store Items Dispensed"
+            color="border-l-4 border-l-blue-500"
+            badge="Line Items"
+          />
+          <FinancialCard 
+            title="Active Consuming Depts" 
+            value={`${materialIssueStats.activeDepts.length} Departments`} 
+            subtitle="Spinning, Weaving, Spares, etc."
+            color="border-l-4 border-l-emerald-500"
+            badge="Depts"
+          />
+        </div>
+
+        {/* Chart & Recent Issues Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+          {/* Department Issue Distribution Chart */}
+          <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-800 space-y-3">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-amber-500" />
+                  Material Consumption by Department
+                </h3>
+                <p className="text-xs text-gray-500">Outward quantity issued per production center</p>
+              </div>
+            </div>
+
+            <div className="h-64 pt-2">
+              {departmentIssueChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={departmentIssueChartData} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                    <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} />
+                    <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} />
+                    <Tooltip 
+                      formatter={(val: any) => [`${Number(val).toLocaleString('en-IN')} units`, 'Issued Qty']}
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                    />
+                    <Bar dataKey="quantity" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Issued Qty" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-400 text-xs">
+                  No material issue records found.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Department Material Issue Vouchers Table */}
+          <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-800 space-y-3 flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-indigo-600" />
+                  Recent Material Issue Requests & Vouchers
+                </h3>
+                <Link to="/material-issue" className="text-[11px] text-indigo-600 font-bold hover:underline">
+                  View All ({materialIssueStats.totalIssuesCount}) →
+                </Link>
+              </div>
+
+              <div className="overflow-x-auto border border-gray-100 dark:border-zinc-800 rounded-xl">
+                <table className="w-full text-left text-xs whitespace-nowrap">
+                  <thead>
+                    <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-100 dark:border-zinc-800 text-gray-500 font-semibold uppercase text-[10px]">
+                      <th className="px-3 py-2">Date</th>
+                      <th className="px-3 py-2">Voucher #</th>
+                      <th className="px-3 py-2">Department</th>
+                      <th className="px-3 py-2 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                    {materialIssueStats.recentIssues.map((issue: any, idx: number) => {
+                      const deptName = departments.find(d => d.id === issue.departmentId || d.name === issue.departmentId)?.name || issue.departmentId || 'Department';
+                      return (
+                        <tr key={issue.id || idx} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50">
+                          <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300">
+                            {issue.date || 'Today'}
+                          </td>
+                          <td className="px-3 py-2.5 font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                            MIV-{issue.id.substring(0, 6).toUpperCase()}
+                          </td>
+                          <td className="px-3 py-2.5 font-semibold text-gray-900 dark:text-white">
+                            {deptName}
+                          </td>
+                          <td className="px-3 py-2.5 text-center">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                              <CheckCircle2 className="w-3 h-3" /> Issued
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {materialIssueStats.recentIssues.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-6 text-center text-gray-400 text-xs">
+                          No material issue vouchers created yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
