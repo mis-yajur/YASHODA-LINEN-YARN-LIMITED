@@ -22,6 +22,8 @@ export default function Inventory() {
   const { 
     items = [], 
     addItem, 
+    updateItem,
+    deleteItem,
     stock = [], 
     warehouses = [], 
     stockTransfers = [], 
@@ -44,8 +46,9 @@ export default function Inventory() {
   const [selectedCompany, setSelectedCompany] = useState<'All' | 'Yashoda' | 'AIPL'>('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<'item' | 'transfer' | 'adjustment'>('item');
+  const [modalType, setModalType] = useState<'item' | 'itemMaster' | 'transfer' | 'adjustment'>('item');
   const [editingGateEntry, setEditingGateEntry] = useState<any>(null);
+  const [editingItemMaster, setEditingItemMaster] = useState<any>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isConverterOpen, setIsConverterOpen] = useState(false);
   const [isMapOpen, setIsMapOpen] = useState(false);
@@ -349,19 +352,44 @@ export default function Inventory() {
     alert('Bulk upload completed');
   };
 
-  // Item Master List - Derived directly from Gate Entry Register (Exclusively Yashoda Store Table)
+  // Item Master List - Derived from Item Catalog Master & Gate Entry Inward Register
   const activeItemMasterList = useMemo(() => {
     const map: Record<string, {
       id: string;
-      itemDescription: string;
-      skuCode: string;
-      categoryType: string;
+      itemCode: string;
+      itemName: string;
+      itemCategory: string;
+      itemType: string;
       uom: string;
-      company: string;
-      companyType: 'Yashoda';
+      warehouse: string;
+      batchTracking: string;
+      serialTracking: string;
+      status: string;
+      isCatalogItem: boolean;
     }> = {};
 
-    // 1. Populate directly from active Gate Entry Register (Yashoda)
+    // 1. First populate directly from items database catalog
+    (items || []).forEach(item => {
+      const name = (item.name || '').trim();
+      if (!name) return;
+      const key = name.toLowerCase();
+
+      map[key] = {
+        id: item.id,
+        itemCode: item.itemCode || item.sku || ('YASH-' + Math.floor(1000 + Math.random() * 9000)),
+        itemName: name,
+        itemCategory: item.category || item.categoryId || 'Raw Material',
+        itemType: item.type || 'Stock Item',
+        uom: item.uom || 'Kgs',
+        warehouse: item.warehouse || 'Main Warehouse',
+        batchTracking: typeof item.batchTracking === 'boolean' ? (item.batchTracking ? 'Yes' : 'No') : (item.batchTracking || 'No'),
+        serialTracking: typeof item.serialTracking === 'boolean' ? (item.serialTracking ? 'Yes' : 'No') : (item.serialTracking || 'No'),
+        status: item.status || 'Active',
+        isCatalogItem: true
+      };
+    });
+
+    // 2. Populate / augment from active Yashoda Gate Entry Inwards
     (activeGateEntries || []).forEach(entry => {
       const desc = (entry.materialDescription || '').trim();
       if (!desc) return;
@@ -369,32 +397,23 @@ export default function Inventory() {
 
       if (!map[key]) {
         const skuHash = Math.abs(key.split('').reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) | 0, 0)) % 9000 + 1000;
-        const skuCode = 'YASH-' + desc.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X') + '-' + skuHash;
+        const code = 'YASH-' + desc.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X') + '-' + skuHash;
 
         map[key] = {
           id: entry.id || 'gate-' + key,
-          itemDescription: desc,
-          skuCode: skuCode,
-          categoryType: 'Raw Material / Store Item',
+          itemCode: code,
+          itemName: desc,
+          itemCategory: 'Raw Material',
+          itemType: 'Stock Item',
           uom: entry.unit || 'Kgs',
-          company: 'Yashoda Linen Yarn Ltd',
-          companyType: 'Yashoda'
+          warehouse: 'Main Warehouse',
+          batchTracking: 'No',
+          serialTracking: 'No',
+          status: 'Active',
+          isCatalogItem: false
         };
       } else {
-        if (entry.unit) map[key].uom = entry.unit;
-      }
-    });
-
-    // 2. Enhance metadata for existing items catalog if present
-    (items || []).forEach(item => {
-      const desc = (item.name || '').trim();
-      if (!desc) return;
-      const key = desc.toLowerCase();
-
-      if (map[key]) {
-        if (item.sku) map[key].skuCode = item.sku;
-        if (item.categoryId || item.type) map[key].categoryType = item.categoryId || item.type;
-        if (item.uom) map[key].uom = item.uom;
+        if (entry.unit && (!map[key].uom || map[key].uom === 'Kgs')) map[key].uom = entry.unit;
       }
     });
 
@@ -403,11 +422,13 @@ export default function Inventory() {
 
   const filteredItemMasterList = useMemo(() => {
     return activeItemMasterList.filter(item =>
-      item.itemDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.skuCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.categoryType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.itemCategory.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.itemType.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.uom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.company.toLowerCase().includes(searchTerm.toLowerCase())
+      item.warehouse.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.status.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [activeItemMasterList, searchTerm]);
 
@@ -700,6 +721,17 @@ export default function Inventory() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  setEditingItemMaster(null);
+                  setModalType('itemMaster');
+                  setIsModalOpen(true);
+                }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+              >
+                <Plus className="w-4 h-4" /> Add Item Master
+              </button>
+
               <div className="bg-gray-100 dark:bg-zinc-800 p-1 rounded-lg flex gap-1 text-xs">
                 <button
                   onClick={() => setItemMasterSubTab('catalog')}
@@ -727,7 +759,7 @@ export default function Inventory() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input 
                   type="text" 
-                  placeholder="Search items, SKU, category..." 
+                  placeholder="Search item code, name, category, warehouse..." 
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-4 py-1.5 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none text-xs"
@@ -738,14 +770,18 @@ export default function Inventory() {
 
           {itemMasterSubTab === 'catalog' ? (
             <div className="overflow-x-auto border rounded-xl border-gray-200 dark:border-zinc-800">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <th className="px-4 py-3">Item Description</th>
-                    <th className="px-4 py-3">SKU Code</th>
-                    <th className="px-4 py-3">Category / Type</th>
-                    <th className="px-4 py-3">UOM</th>
-                    <th className="px-4 py-3">Company Source</th>
+                    <th className="px-4 py-3">Item Code</th>
+                    <th className="px-4 py-3">Item Name</th>
+                    <th className="px-4 py-3">Item Category</th>
+                    <th className="px-4 py-3">Item Type</th>
+                    <th className="px-4 py-3">Unit of Measure (UOM)</th>
+                    <th className="px-4 py-3">Warehouse</th>
+                    <th className="px-4 py-3 text-center">Batch Tracking</th>
+                    <th className="px-4 py-3 text-center">Serial Number Tracking</th>
+                    <th className="px-4 py-3 text-center">Status</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -753,47 +789,77 @@ export default function Inventory() {
                   {filteredItemMasterList.map(item => {
                     return (
                       <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
-                        <td className="px-4 py-3 font-bold text-gray-900 dark:text-white">
-                          {item.itemDescription}
+                        <td className="px-4 py-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                          {item.itemCode}
                         </td>
-                        <td className="px-4 py-3 font-mono font-semibold text-indigo-600 dark:text-indigo-400">
-                          {item.skuCode}
+                        <td className="px-4 py-3 font-bold text-gray-900 dark:text-white">
+                          {item.itemName}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">
+                          <span className="bg-gray-100 dark:bg-zinc-800 text-gray-800 dark:text-gray-200 px-2.5 py-1 rounded-md text-xs font-semibold">
+                            {item.itemCategory}
+                          </span>
                         </td>
                         <td className="px-4 py-3 font-medium text-gray-600 dark:text-gray-300">
-                          {item.categoryType}
+                          {item.itemType}
                         </td>
-                        <td className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">
                           {item.uom}
                         </td>
-                        <td className="px-4 py-3 font-medium">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${
-                            item.companyType === 'AIPL' 
-                              ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
-                              : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
-                          }`}>
-                            {item.company}
+                        <td className="px-4 py-3 font-medium text-gray-600 dark:text-gray-300">
+                          {item.warehouse}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold ${item.batchTracking === 'Yes' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-gray-400'}`}>
+                            {item.batchTracking}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold ${item.serialTracking === 'Yes' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300' : 'bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-gray-400'}`}>
+                            {item.serialTracking}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${item.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800' : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800'}`}>
+                            {item.status}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button 
-                            onClick={() => {
-                              if (window.confirm(`Delete item "${item.itemDescription}" from Item Master?`)) {
-                                alert(`Item "${item.itemDescription}" removed from Item Master.`);
-                              }
-                            }}
-                            className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                            title="Delete Item"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex justify-end gap-1">
+                            <button 
+                              onClick={() => {
+                                setEditingItemMaster(item);
+                                setModalType('itemMaster');
+                                setIsModalOpen(true);
+                              }}
+                              className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-lg transition-colors"
+                              title="Edit Item Master"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                              onClick={async () => {
+                                if (window.confirm(`Delete item "${item.itemName}" (${item.itemCode}) from Item Master?`)) {
+                                  if (deleteItem && item.isCatalogItem) {
+                                    await deleteItem(item.id);
+                                  }
+                                  alert(`Item "${item.itemName}" removed from Item Master.`);
+                                }
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition-colors"
+                              title="Delete Item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
                   })}
                   {filteredItemMasterList.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                        No items found in Item Master Catalog. Items are populated automatically from Gate Entry Register entries.
+                      <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                        No items found in Item Master Catalog. Click "+ Add Item Master" to create a new item master record.
                       </td>
                     </tr>
                   )}
@@ -1271,10 +1337,41 @@ export default function Inventory() {
       {isModalOpen && (
         <ItemModal 
           type={modalType}
-          initialData={editingGateEntry}
-          onClose={() => { setIsModalOpen(false); setEditingGateEntry(null); }} 
+          initialData={modalType === 'item' ? editingGateEntry : editingItemMaster}
+          onClose={() => { setIsModalOpen(false); setEditingGateEntry(null); setEditingItemMaster(null); }} 
           onSave={async (data) => {
-            if (modalType === 'item') {
+            if (modalType === 'itemMaster') {
+              if (editingItemMaster && editingItemMaster.isCatalogItem && updateItem) {
+                await updateItem(editingItemMaster.id, {
+                  itemCode: data.itemCode,
+                  sku: data.itemCode,
+                  name: data.itemName,
+                  category: data.itemCategory,
+                  categoryId: data.itemCategory,
+                  type: data.itemType,
+                  uom: data.uom,
+                  warehouse: data.warehouse,
+                  batchTracking: data.batchTracking,
+                  serialTracking: data.serialTracking,
+                  status: data.status
+                });
+              } else if (addItem) {
+                await addItem({
+                  itemCode: data.itemCode || ('YASH-' + Math.floor(1000 + Math.random() * 9000)),
+                  sku: data.itemCode || ('YASH-' + Math.floor(1000 + Math.random() * 9000)),
+                  name: data.itemName,
+                  category: data.itemCategory,
+                  categoryId: data.itemCategory,
+                  type: data.itemType,
+                  uom: data.uom,
+                  warehouse: data.warehouse,
+                  batchTracking: data.batchTracking,
+                  serialTracking: data.serialTracking,
+                  status: data.status,
+                  reorderLevel: 10
+                });
+              }
+            } else if (modalType === 'item') {
               if (editingGateEntry && updateGateEntry) {
                 await updateGateEntry(editingGateEntry.id, data, 'Yashoda');
               } else if (addGateEntry) {
@@ -1285,13 +1382,19 @@ export default function Inventory() {
               const itemDesc = data.materialDescription || data.name;
               if (itemDesc) {
                 const existing = items.find(i => i.name.toLowerCase() === itemDesc.toLowerCase());
-                if (!existing) {
+                if (!existing && addItem) {
                   addItem({
-                    name: itemDesc,
+                    itemCode: `YASH-${Math.floor(1000 + Math.random() * 9000)}`,
                     sku: `YASH-${Math.floor(1000 + Math.random() * 9000)}`,
+                    name: itemDesc,
+                    category: 'Raw Material',
                     categoryId: 'Raw Material',
                     uom: data.unit || 'Kgs',
-                    type: 'Raw Material',
+                    type: 'Stock Item',
+                    warehouse: 'Main Warehouse',
+                    batchTracking: 'No',
+                    serialTracking: 'No',
+                    status: 'Active',
                     reorderLevel: 10
                   });
                 }
@@ -1317,6 +1420,7 @@ export default function Inventory() {
             }
             setIsModalOpen(false);
             setEditingGateEntry(null);
+            setEditingItemMaster(null);
           }} 
         />
       )}
@@ -1336,8 +1440,19 @@ export default function Inventory() {
   );
 }
 
-function ItemModal({ type, initialData, onClose, onSave }: { type: 'item' | 'transfer' | 'adjustment', initialData?: any, onClose: () => void, onSave: (data: any) => void }) {
+function ItemModal({ type, initialData, onClose, onSave }: { type: 'item' | 'itemMaster' | 'transfer' | 'adjustment', initialData?: any, onClose: () => void, onSave: (data: any) => void }) {
   const [formData, setFormData] = useState(
+    type === 'itemMaster' ? {
+      itemCode: initialData?.itemCode || initialData?.skuCode || (`YASH-${Math.floor(1000 + Math.random() * 9000)}`),
+      itemName: initialData?.itemName || initialData?.itemDescription || initialData?.name || '',
+      itemCategory: initialData?.itemCategory || initialData?.categoryType || initialData?.category || 'Raw Material',
+      itemType: initialData?.itemType || initialData?.type || 'Stock Item',
+      uom: initialData?.uom || 'Kg',
+      warehouse: initialData?.warehouse || 'Main Warehouse',
+      batchTracking: initialData?.batchTracking || 'No',
+      serialTracking: initialData?.serialTracking || 'No',
+      status: initialData?.status || 'Active'
+    } :
     type === 'item' ? {
       slNo: initialData?.slNo || '',
       date: initialData?.date || new Date().toISOString().split('T')[0],
@@ -1371,9 +1486,13 @@ function ItemModal({ type, initialData, onClose, onSave }: { type: 'item' | 'tra
         <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-zinc-800">
           <div>
             <h2 className="text-lg font-bold">
-              {type === 'item' ? (initialData ? 'Edit Yashoda Item' : 'Add Yashoda Item (Gate Register Data)') : 
+              {type === 'itemMaster' ? (initialData ? 'Edit Item Master Record' : 'Add Item Master Record') :
+               type === 'item' ? (initialData ? 'Edit Yashoda Item' : 'Add Yashoda Item (Gate Register Data)') : 
                type === 'transfer' ? 'New Stock Transfer' : 'New Stock Adjustment'}
             </h2>
+            {type === 'itemMaster' && (
+              <p className="text-xs text-gray-500">Configure catalog specs, tracking rules, UOM, and active status</p>
+            )}
             {type === 'item' && (
               <p className="text-xs text-gray-500">All fields match Yashoda Gate Entry Register</p>
             )}
@@ -1381,91 +1500,178 @@ function ItemModal({ type, initialData, onClose, onSave }: { type: 'item' | 'tra
           <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 space-y-4">
-          {type === 'item' && (
+          {type === 'itemMaster' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div>
-                <label className="block font-semibold mb-1">SL. No</label>
-                <input type="text" value={(formData as any).slNo} onChange={e => setFormData({...formData, slNo: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Date</label>
-                <input type="date" value={(formData as any).date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Vehicle No.</label>
-                <input type="text" value={(formData as any).vehicleNo} onChange={e => setFormData({...formData, vehicleNo: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Party Name</label>
-                <input type="text" value={(formData as any).partyName} onChange={e => setFormData({...formData, partyName: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" required />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">GST No.</label>
-                <input type="text" value={(formData as any).gstNo} onChange={e => setFormData({...formData, gstNo: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1 text-indigo-600 dark:text-indigo-400">Material Description *</label>
-                <input type="text" value={(formData as any).materialDescription} onChange={e => setFormData({...formData, materialDescription: e.target.value})} className="w-full p-2 border border-indigo-200 dark:border-indigo-800 rounded-lg bg-indigo-50/30 dark:bg-indigo-950/20 outline-none font-bold" required />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Quantity</label>
-                <input type="text" value={(formData as any).quantityWeight} onChange={e => setFormData({...formData, quantityWeight: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">UOM</label>
-                <input type="text" value={(formData as any).unit} onChange={e => setFormData({...formData, unit: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">RATE/UOM</label>
-                <input type="text" value={(formData as any).rateUom} onChange={e => setFormData({...formData, rateUom: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Base Price</label>
-                <input type="text" value={(formData as any).basePrice} onChange={e => setFormData({...formData, basePrice: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">SGST</label>
-                <input type="text" value={(formData as any).sgst} onChange={e => setFormData({...formData, sgst: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">CGST</label>
-                <input type="text" value={(formData as any).cgst} onChange={e => setFormData({...formData, cgst: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">IGST</label>
-                <input type="text" value={(formData as any).igst} onChange={e => setFormData({...formData, igst: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Total Price</label>
-                <input type="text" value={(formData as any).totalPrice} onChange={e => setFormData({...formData, totalPrice: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">e-Way Bill</label>
-                <input type="text" value={(formData as any).ewayBill} onChange={e => setFormData({...formData, ewayBill: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Invoice No./Value</label>
-                <input type="text" value={(formData as any).invoiceNoValue} onChange={e => setFormData({...formData, invoiceNoValue: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">In Time</label>
-                <input type="text" value={(formData as any).inTime} onChange={e => setFormData({...formData, inTime: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Out Time</label>
-                <input type="text" value={(formData as any).outTime} onChange={e => setFormData({...formData, outTime: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Driver Licence No.</label>
-                <input type="text" value={(formData as any).driverLicenceNo} onChange={e => setFormData({...formData, driverLicenceNo: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Contact No./Sign.</label>
-                <input type="text" value={(formData as any).contactNoSign} onChange={e => setFormData({...formData, contactNoSign: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
-              </div>
               <div className="md:col-span-2">
-                <label className="block font-semibold mb-1">Security Sign.</label>
-                <input type="text" value={(formData as any).securitySign} onChange={e => setFormData({...formData, securitySign: e.target.value})} className="w-full p-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-800 outline-none" />
+                <label className="block font-semibold mb-1 text-gray-700 dark:text-gray-300">
+                  Item Code <span className="text-gray-400 font-normal">(Unique Item Code - Auto/Manual)</span>
+                </label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={(formData as any).itemCode} 
+                    onChange={e => setFormData({...formData, itemCode: e.target.value})} 
+                    className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 font-mono font-bold text-indigo-600 dark:text-indigo-400 outline-none" 
+                    placeholder="e.g. YASH-3242"
+                    required 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFormData({...formData, itemCode: `YASH-${Math.floor(1000 + Math.random() * 9000)}`})}
+                    className="px-3 py-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors whitespace-nowrap"
+                  >
+                    Auto Code
+                  </button>
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block font-semibold mb-1 text-gray-700 dark:text-gray-300">
+                  Item Name <span className="text-rose-500">*</span>
+                </label>
+                <input 
+                  type="text" 
+                  value={(formData as any).itemName} 
+                  onChange={e => setFormData({...formData, itemName: e.target.value})} 
+                  className="w-full p-2.5 border border-indigo-200 dark:border-indigo-800 rounded-xl bg-indigo-50/20 dark:bg-indigo-950/20 font-bold text-gray-900 dark:text-white outline-none" 
+                  placeholder="Enter name of the item"
+                  required 
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-gray-700 dark:text-gray-300">
+                  Item Category
+                </label>
+                <select 
+                  value={(formData as any).itemCategory} 
+                  onChange={e => setFormData({...formData, itemCategory: e.target.value})} 
+                  className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 font-medium outline-none"
+                >
+                  <option value="Raw Material">Raw Material</option>
+                  <option value="Consumable">Consumable</option>
+                  <option value="Spare">Spare</option>
+                  <option value="Chemical">Chemical</option>
+                  <option value="Tool">Tool</option>
+                  <option value="Packing Material">Packing Material</option>
+                  <option value="Finished Good">Finished Good</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-gray-700 dark:text-gray-300">
+                  Item Type
+                </label>
+                <select 
+                  value={(formData as any).itemType} 
+                  onChange={e => setFormData({...formData, itemType: e.target.value})} 
+                  className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 font-medium outline-none"
+                >
+                  <option value="Stock Item">Stock Item</option>
+                  <option value="Non-Stock Item">Non-Stock Item</option>
+                  <option value="Service">Service</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-gray-700 dark:text-gray-300">
+                  Unit of Measure (UOM)
+                </label>
+                <select 
+                  value={(formData as any).uom} 
+                  onChange={e => setFormData({...formData, uom: e.target.value})} 
+                  className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 font-medium outline-none"
+                >
+                  <option value="Kg">Kg</option>
+                  <option value="Nos">Nos</option>
+                  <option value="Ltr">Ltr</option>
+                  <option value="Mtr">Mtr</option>
+                  <option value="Roll">Roll</option>
+                  <option value="Bag">Bag</option>
+                  <option value="Box">Box</option>
+                  <option value="Set">Set</option>
+                  <option value="Pair">Pair</option>
+                  <option value="Drum">Drum</option>
+                  <option value="TON">TON</option>
+                  <option value="Quintal">Quintal</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-gray-700 dark:text-gray-300">
+                  Warehouse / Store Location
+                </label>
+                <select 
+                  value={(formData as any).warehouse} 
+                  onChange={e => setFormData({...formData, warehouse: e.target.value})} 
+                  className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 font-medium outline-none"
+                >
+                  <option value="Main Warehouse">Main Warehouse</option>
+                  <option value="Raw Material Store">Raw Material Store</option>
+                  <option value="Spares Warehouse">Spares Warehouse</option>
+                  <option value="Chemical Store">Chemical Store</option>
+                  <option value="Tools Store">Tools Store</option>
+                  <option value="Packing Store">Packing Store</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-gray-700 dark:text-gray-300">
+                  Batch Tracking
+                </label>
+                <select 
+                  value={(formData as any).batchTracking} 
+                  onChange={e => setFormData({...formData, batchTracking: e.target.value})} 
+                  className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 font-medium outline-none"
+                >
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-gray-700 dark:text-gray-300">
+                  Serial Number Tracking
+                </label>
+                <select 
+                  value={(formData as any).serialTracking} 
+                  onChange={e => setFormData({...formData, serialTracking: e.target.value})} 
+                  className="w-full p-2.5 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 font-medium outline-none"
+                >
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block font-semibold mb-1 text-gray-700 dark:text-gray-300">
+                  Status
+                </label>
+                <div className="flex gap-4 items-center mt-1">
+                  <label className="flex items-center gap-2 cursor-pointer font-semibold">
+                    <input 
+                      type="radio" 
+                      name="status" 
+                      value="Active" 
+                      checked={(formData as any).status === 'Active'} 
+                      onChange={e => setFormData({...formData, status: e.target.value})} 
+                      className="accent-emerald-600"
+                    />
+                    <span className="text-emerald-700 dark:text-emerald-400">Active</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer font-semibold">
+                    <input 
+                      type="radio" 
+                      name="status" 
+                      value="Inactive" 
+                      checked={(formData as any).status === 'Inactive'} 
+                      onChange={e => setFormData({...formData, status: e.target.value})} 
+                      className="accent-rose-600"
+                    />
+                    <span className="text-rose-700 dark:text-rose-400">Inactive</span>
+                  </label>
+                </div>
               </div>
             </div>
           )}

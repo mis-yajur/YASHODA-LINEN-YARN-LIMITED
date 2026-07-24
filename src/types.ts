@@ -18,12 +18,18 @@ export interface Supplier {
 
 export interface Item {
   id: string;
-  categoryId: string;
+  itemCode?: string;
+  sku?: string;
   name: string;
-  sku: string;
-  uom: string; // Unit of Measure
-  reorderLevel: number;
-  type: string; // Raw Material, Consumable, Spare Part, etc.
+  categoryId?: string;
+  category?: string;
+  type?: 'Stock Item' | 'Non-Stock Item' | 'Service' | string;
+  uom: string; // Kg, Nos, Ltr, Mtr, Roll, Bag, Box, Set, Pair, Drum
+  warehouse?: string;
+  batchTracking?: boolean | string; // Yes/No
+  serialTracking?: boolean | string; // Yes/No
+  status?: 'Active' | 'Inactive' | string;
+  reorderLevel?: number;
 }
 
 export interface Warehouse {
