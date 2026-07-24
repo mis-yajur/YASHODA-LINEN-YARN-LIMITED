@@ -227,30 +227,12 @@ export default function Inventory() {
       };
     });
 
-    // 2. Enhance metadata (SKU/reorderLevel/category) & add items from Item Master if not present
+    // 2. Enhance metadata (SKU/reorderLevel/category) for items in Yashoda Gate Inward receipts
     (items || []).forEach(item => {
       const key = (item.name || '').trim().toLowerCase();
       if (!key) return;
 
-      if (!map[key]) {
-        map[key] = {
-          key,
-          itemName: item.name,
-          sku: item.sku || 'SKU-' + item.id.substring(0, 5),
-          uom: item.uom || 'Kgs',
-          category: item.categoryId || 'Raw Material',
-          warehouse: 'Main Mill Store',
-          inwardQty: 0,
-          issuedQty: 0,
-          currentStock: 0,
-          avgRate: 0,
-          totalInwardValue: 0,
-          totalValue: 0,
-          reorderLevel: item.reorderLevel || 10,
-          isLow: false,
-          sources: ['Item Master']
-        };
-      } else {
+      if (map[key]) {
         if (item.sku) map[key].sku = item.sku;
         if (item.categoryId) map[key].category = item.categoryId;
         if (item.reorderLevel) map[key].reorderLevel = item.reorderLevel;
@@ -367,7 +349,7 @@ export default function Inventory() {
     alert('Bulk upload completed');
   };
 
-  // Item Master List - Derived directly from Gate Entry Register (Yashoda & Contractor AIPL Store) & Catalog
+  // Item Master List - Derived directly from Gate Entry Register (Exclusively Yashoda Store Table)
   const activeItemMasterList = useMemo(() => {
     const map: Record<string, {
       id: string;
@@ -376,10 +358,10 @@ export default function Inventory() {
       categoryType: string;
       uom: string;
       company: string;
-      companyType: 'Yashoda' | 'AIPL' | 'Both';
+      companyType: 'Yashoda';
     }> = {};
 
-    // 1. Populate directly from active Gate Entry Register
+    // 1. Populate directly from active Gate Entry Register (Yashoda)
     (activeGateEntries || []).forEach(entry => {
       const desc = (entry.materialDescription || '').trim();
       if (!desc) return;
@@ -387,8 +369,7 @@ export default function Inventory() {
 
       if (!map[key]) {
         const skuHash = Math.abs(key.split('').reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) | 0, 0)) % 9000 + 1000;
-        const prefix = entry.companyType === 'AIPL' ? 'AIPL-' : 'YASH-';
-        const skuCode = prefix + desc.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X') + '-' + skuHash;
+        const skuCode = 'YASH-' + desc.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X') + '-' + skuHash;
 
         map[key] = {
           id: entry.id || 'gate-' + key,
@@ -396,35 +377,21 @@ export default function Inventory() {
           skuCode: skuCode,
           categoryType: 'Raw Material / Store Item',
           uom: entry.unit || 'Kgs',
-          company: entry.companyLabel || (entry.companyType === 'AIPL' ? 'Contractor AIPL Store' : 'Yashoda Linen Yarn Ltd'),
-          companyType: entry.companyType
+          company: 'Yashoda Linen Yarn Ltd',
+          companyType: 'Yashoda'
         };
       } else {
         if (entry.unit) map[key].uom = entry.unit;
-        if (map[key].companyType !== entry.companyType) {
-          map[key].company = 'Yashoda & Contractor AIPL Store';
-          map[key].companyType = 'Both';
-        }
       }
     });
 
-    // 2. Also map existing items catalog if present
+    // 2. Enhance metadata for existing items catalog if present
     (items || []).forEach(item => {
       const desc = (item.name || '').trim();
       if (!desc) return;
       const key = desc.toLowerCase();
 
-      if (!map[key]) {
-        map[key] = {
-          id: item.id,
-          itemDescription: desc,
-          skuCode: item.sku || ('SKU-' + Math.floor(1000 + Math.random() * 9000)),
-          categoryType: item.categoryId || item.type || 'Raw Material',
-          uom: item.uom || 'Kgs',
-          company: 'Master Catalog',
-          companyType: 'Yashoda'
-        };
-      } else {
+      if (map[key]) {
         if (item.sku) map[key].skuCode = item.sku;
         if (item.categoryId || item.type) map[key].categoryType = item.categoryId || item.type;
         if (item.uom) map[key].uom = item.uom;

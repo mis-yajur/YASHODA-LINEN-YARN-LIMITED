@@ -11,7 +11,7 @@ export default function MaterialIssue() {
   const yashodaStoreItems = useMemo(() => {
     const map = new Map<string, { id: string; name: string; sku: string; uom: string }>();
 
-    // 1. Populate directly from active Yashoda Store Gate Entry Inwards (Table 41)
+    // Populate directly from active Yashoda Store Gate Entry Inwards (Table 41)
     (gateEntriesYashoda || []).forEach(entry => {
       const matName = (entry.materialDescription || '').trim();
       if (!matName) return;
@@ -24,22 +24,6 @@ export default function MaterialIssue() {
           name: matName,
           sku: matched?.sku || ('YASH-' + matName.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X')),
           uom: entry.unit || matched?.uom || 'Kgs'
-        });
-      }
-    });
-
-    // 2. Map existing catalog items if present
-    (items || []).forEach(item => {
-      const matName = (item.name || '').trim();
-      if (!matName) return;
-      const key = matName.toLowerCase();
-
-      if (!map.has(key)) {
-        map.set(key, {
-          id: item.id,
-          name: item.name,
-          sku: item.sku || ('SKU-' + item.id.substring(0, 5)),
-          uom: item.uom || 'Kgs'
         });
       }
     });
