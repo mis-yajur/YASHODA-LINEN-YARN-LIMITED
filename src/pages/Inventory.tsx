@@ -1,8 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Item } from '../types';
-import { Plus, Search, Edit2, Trash2, X, Package, ArrowRightLeft, Settings2, RefreshCw, Truck, CheckCircle2, IndianRupee, Download } from 'lucide-react';
+import { 
+  Plus, Search, Edit2, Trash2, X, Package, ArrowRightLeft, Settings2, RefreshCw, 
+  Truck, CheckCircle2, IndianRupee, Download, Calculator, Building2, AlertTriangle, CheckSquare, Square
+} from 'lucide-react';
 import { CSVUploader } from '../components/CSVUploader';
+import { UnitConverterModal } from '../components/UnitConverterModal';
+import { WarehouseMapModal } from '../components/WarehouseMapModal';
 import { convertUnitQuantity } from '../lib/utils';
 
 function parseNumeric(val: string | number | undefined): number {
@@ -42,6 +47,9 @@ export default function Inventory() {
   const [modalType, setModalType] = useState<'item' | 'transfer' | 'adjustment'>('item');
   const [editingGateEntry, setEditingGateEntry] = useState<any>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isConverterOpen, setIsConverterOpen] = useState(false);
+  const [isMapOpen, setIsMapOpen] = useState(false);
+  const [selectedStockIds, setSelectedStockIds] = useState<string[]>([]);
 
   // Process Gate Entries for Inventory Inward Stock and Item Master (Yashoda & Contractor AIPL Store)
   const allGateEntries = useMemo(() => {
@@ -554,7 +562,7 @@ export default function Inventory() {
         const formatted = formatStockItemDisplay(st);
         return [
           `"${st.itemName}"`,
-          `"${formatted.displayUnit}"`,
+          `"${formatted.displayUom}"`,
           `"${formatted.displayInward.toFixed(2)}"`,
           `"${formatted.displayIssued.toFixed(2)}"`,
           `"${formatted.displayCurrent.toFixed(2)}"`,
@@ -665,6 +673,22 @@ export default function Inventory() {
               Contractor AIPL ({gateEntriesAIPL.length})
             </button>
           </div>
+
+          <button 
+            onClick={() => setIsConverterOpen(true)}
+            className="bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 border border-gray-200 dark:border-zinc-700 px-3 py-2 rounded-lg flex items-center gap-1.5 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors text-xs font-semibold shadow-xs"
+            title="Open Multi-Unit Conversion Calculator"
+          >
+            <Calculator className="w-3.5 h-3.5" /> UOM Converter
+          </button>
+
+          <button 
+            onClick={() => setIsMapOpen(true)}
+            className="bg-white dark:bg-zinc-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-zinc-700 px-3 py-2 rounded-lg flex items-center gap-1.5 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors text-xs font-semibold shadow-xs"
+            title="Open Interactive Visual Warehouse Bin/Rack Map"
+          >
+            <Building2 className="w-3.5 h-3.5 text-indigo-500" /> Warehouse Map
+          </button>
 
           <button 
             onClick={handleSyncGateEntriesToInventory}
@@ -1365,6 +1389,18 @@ export default function Inventory() {
           }} 
         />
       )}
+
+      {/* Multi-Unit Conversion Matrix Modal */}
+      <UnitConverterModal
+        isOpen={isConverterOpen}
+        onClose={() => setIsConverterOpen(false)}
+      />
+
+      {/* Visual Warehouse Map Modal */}
+      <WarehouseMapModal
+        isOpen={isMapOpen}
+        onClose={() => setIsMapOpen(false)}
+      />
     </div>
   );
 }

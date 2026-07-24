@@ -4,9 +4,10 @@ import {
   Package, ShoppingCart, Layers, AlertTriangle, CheckCircle2, 
   Calendar, RefreshCw, Sparkles, Building2, User, ArrowUpRight,
   Eye, Printer, Search, X, ChevronRight, CheckCircle, Clock,
-  Building, Phone, Mail, Award, CheckSquare
+  Building, Phone, Mail, Award, CheckSquare, History
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { AuditLogModal } from '../components/AuditLogModal';
 import {
   BarChart,
   Bar,
@@ -46,6 +47,7 @@ export default function Reports() {
   const [activeCategory, setActiveCategory] = useState<'gate' | 'inventory' | 'procurement' | 'consumption' | 'export'>('gate');
   const [companyFilter, setCompanyFilter] = useState<'ALL' | 'Yashoda' | 'AIPL'>('ALL');
   const [dateFilter, setDateFilter] = useState<'all' | '7days' | '30days'>('all');
+  const [isAuditLogOpen, setIsAuditLogOpen] = useState(false);
 
   // Independent Date Range & Search Filters for Yashoda and AIPL tables
   const [yashodaStartDate, setYashodaStartDate] = useState('');
@@ -310,6 +312,13 @@ export default function Reports() {
             <option value="30days">Last 30 Days</option>
             <option value="7days">Last 7 Days</option>
           </select>
+
+          <button
+            onClick={() => setIsAuditLogOpen(true)}
+            className="bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-800 dark:text-gray-200 px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all text-xs font-semibold"
+          >
+            <History className="w-4 h-4 text-amber-500" /> System Audit Trail
+          </button>
 
           <button
             onClick={() => setActiveCategory('export')}
@@ -727,6 +736,12 @@ export default function Reports() {
           materialIssueItems={materialIssueItems}
         />
       )}
+
+      {/* Audit Log & Activity Tracker Modal */}
+      <AuditLogModal
+        isOpen={isAuditLogOpen}
+        onClose={() => setIsAuditLogOpen(false)}
+      />
     </div>
   );
 }

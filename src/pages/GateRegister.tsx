@@ -1,19 +1,30 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Papa from 'papaparse';
 import { useApp } from '../context/AppContext';
-import { Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn, Edit, Trash2, MoreVertical, Calendar, RotateCcw } from 'lucide-react';
+import { 
+  Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn, Edit, Trash2, 
+  MoreVertical, Calendar, RotateCcw, Scan, Printer, AlertTriangle, Eye, CheckSquare, Square,
+  Building2, ShoppingCart
+} from 'lucide-react';
 import { CSVUploader } from '../components/CSVUploader';
+import { BarcodeScannerModal } from '../components/BarcodeScannerModal';
+import { PrintGatePassModal } from '../components/PrintGatePassModal';
 import { GateEntry } from '../types';
 import { parseDateToYYYYMMDD } from '../lib/utils';
 
 export default function GateRegister() {
-  const { items = [], gateEntriesYashoda = [], gateEntriesAIPL = [], addGateEntry, updateGateEntry, deleteGateEntry, clearAllGateEntries } = useApp();
+  const { items = [], pos = [], suppliers = [], gateEntriesYashoda = [], gateEntriesAIPL = [], addGateEntry, updateGateEntry, deleteGateEntry, clearAllGateEntries } = useApp();
   const [editId, setEditId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [companyType, setCompanyType] = useState<'AIPL' | 'Yashoda'>('Yashoda');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [printEntry, setPrintEntry] = useState<GateEntry | null>(null);
+  const [isPrintOpen, setIsPrintOpen] = useState(false);
+  const [poNumber, setPoNumber] = useState('');
   const handleBulkUpload = async (data: any[]) => {
     for (const row of data) {
       const entry: Omit<GateEntry, 'id'> = {
@@ -69,7 +80,6 @@ export default function GateRegister() {
   
 
   
-  // Form State
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     vehicleNo: '',
@@ -93,7 +103,75 @@ export default function GateRegister() {
     securitySign: ''
   });
 
-  const allEntries = [...(companyType === 'Yashoda' ? (gateEntriesYashoda || []) : (gateEntriesAIPL || []))];
+  const allEntries = useMemo(() => [
+    ...(companyType === 'Yashoda' ? (gateEntriesYashoda || []) : (gateEntriesAIPL || []))
+  ], [companyType, gateEntriesYashoda, gateEntriesAIPL]);
+
+  // Duplicate Invoice Warning Detector
+  const isDuplicateInvoice = useMemo(() => {
+    if (!formData.invoiceNoValue.trim()) return false;
+    const inv = formData.invoiceNoValue.trim().toLowerCase();
+    return allEntries.some(e => e.id !== editId && (e.invoiceNoValue || '').trim().toLowerCase() === inv);
+  }, [formData.invoiceNoValue, allEntries, editId]);
+
+  const handleDatePreset = (preset: 'today' | 'yesterday' | 'thisMonth' | 'lastQuarter' | 'all') => {
+    const today = new Date();
+    if (preset === 'today') {
+      const dateStr = today.toISOString().split('T')[0];
+      setStartDate(dateStr);
+      setEndDate(dateStr);
+    } else if (preset === 'yesterday') {
+      const yest = new Date(today);
+      yest.setDate(yest.getDate() - 1);
+      const dateStr = yest.toISOString().split('T')[0];
+      setStartDate(dateStr);
+      setEndDate(dateStr);
+    } else if (preset === 'thisMonth') {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+      setStartDate(firstDay);
+      setEndDate(lastDay);
+    } else if (preset === 'lastQuarter') {
+      const qStartMonth = Math.floor(today.getMonth() / 3) * 3 - 3;
+      const qStart = new Date(today.getFullYear(), qStartMonth, 1).toISOString().split('T')[0];
+      const qEnd = new Date(today.getFullYear(), qStartMonth + 3, 0).toISOString().split('T')[0];
+      setStartDate(qStart);
+      setEndDate(qEnd);
+    } else {
+      setStartDate('');
+      setEndDate('');
+    }
+    setCurrentPage(1);
+  };
+
+  const handleAutoFillFromPO = (poNumVal: string) => {
+    setPoNumber(poNumVal);
+    if (!poNumVal) return;
+    const po = pos.find(p => p.poNumber.toLowerCase() === poNumVal.toLowerCase() || p.id === poNumVal);
+    if (po) {
+      const supp = suppliers.find(s => s.id === po.supplierId);
+      setFormData(prev => ({
+        ...prev,
+        partyName: supp ? supp.name : prev.partyName,
+        materialDescription: `Material as per PO #${po.poNumber}`,
+        basePrice: po.amount ? po.amount.toString() : prev.basePrice,
+        totalPrice: po.amount ? po.amount.toString() : prev.totalPrice
+      }));
+    }
+  };
+
+  // Checkbox selection helpers
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredEntries.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredEntries.map(e => e.id));
+    }
+  };
+
+  const toggleSelectRow = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
 
   const filteredEntries = (allEntries || []).filter(entry => {
     const matchesSearch = 
@@ -296,7 +374,13 @@ export default function GateRegister() {
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <MapPin className="w-6 h-6 text-indigo-600" /> Gate Entry Register
         </h1>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
+          <button 
+            onClick={() => setIsScannerOpen(true)}
+            className="bg-indigo-50 dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-zinc-700 px-3 py-2 rounded-lg flex items-center gap-1.5 hover:bg-indigo-100 dark:hover:bg-zinc-700 transition-colors text-sm font-semibold"
+          >
+            <Scan className="w-4 h-4" /> Barcode / QR Scan
+          </button>
           <div className="relative overflow-hidden inline-block">
             <input 
               type="file" 
@@ -305,17 +389,22 @@ export default function GateRegister() {
               className="absolute inset-0 opacity-0 cursor-pointer" 
               title="Import CSV"
             />
-            <button className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium">
+            <button className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg flex items-center gap-1.5 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium">
               <Download className="w-4 h-4 rotate-180" /> Import CSV
             </button>
           </div>
-          <button onClick={handleExport} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium">
+          <button onClick={handleExport} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg flex items-center gap-1.5 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-sm font-medium">
             <Download className="w-4 h-4" /> Export CSV
           </button>
+          {selectedIds.length > 0 && (
+            <button onClick={handleExport} className="bg-emerald-600 text-white px-3 py-2 rounded-lg flex items-center gap-1.5 text-sm font-semibold shadow-sm animate-fade-in">
+              <CheckSquare className="w-4 h-4" /> Export Selected ({selectedIds.length})
+            </button>
+          )}
           <button onClick={() => { setEditId(null); setIsModalOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
             <Plus className="w-4 h-4" /> New Entry
           </button>
-          <button onClick={async () => { if (confirm('Delete ALL Gate Entries? This cannot be undone.')) await clearAllGateEntries(companyType); }} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
+          <button onClick={async () => { if (confirm('Delete ALL Gate Entries? This cannot be undone.')) await clearAllGateEntries(companyType); }} className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors text-sm font-medium">
             <X className="w-4 h-4" /> Delete All
           </button>
         </div>
@@ -356,9 +445,15 @@ export default function GateRegister() {
               className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
-          <div className="flex items-center gap-2 bg-gray-50 dark:bg-zinc-800 p-2 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            <span className="text-gray-500 font-semibold hidden md:inline">Date:</span>
+          <div className="flex flex-wrap items-center gap-2 bg-gray-50 dark:bg-zinc-800 p-2 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs">
+            <div className="flex items-center gap-1 border-r border-gray-200 dark:border-zinc-700 pr-2">
+              <span className="text-[11px] font-bold text-gray-400 mr-1">Presets:</span>
+              <button type="button" onClick={() => handleDatePreset('today')} className="px-2 py-0.5 bg-white dark:bg-zinc-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 rounded font-semibold text-gray-700 dark:text-gray-200">Today</button>
+              <button type="button" onClick={() => handleDatePreset('yesterday')} className="px-2 py-0.5 bg-white dark:bg-zinc-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 rounded font-semibold text-gray-700 dark:text-gray-200">Yesterday</button>
+              <button type="button" onClick={() => handleDatePreset('thisMonth')} className="px-2 py-0.5 bg-white dark:bg-zinc-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 rounded font-semibold text-gray-700 dark:text-gray-200">This Month</button>
+              <button type="button" onClick={() => handleDatePreset('lastQuarter')} className="px-2 py-0.5 bg-white dark:bg-zinc-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 rounded font-semibold text-gray-700 dark:text-gray-200">Last Quarter</button>
+            </div>
+            <Calendar className="w-4 h-4 text-gray-400 ml-1" />
             <input 
               type="date"
               value={startDate}
@@ -391,6 +486,14 @@ export default function GateRegister() {
           <table className="w-full text-left whitespace-nowrap">
             <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 text-sm font-medium text-gray-500 dark:text-gray-400">
               <tr>
+                <th className="px-3 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.length > 0 && selectedIds.length === filteredEntries.length}
+                    onChange={toggleSelectAll}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                </th>
                 <th className="px-4 py-3">{companyType === 'AIPL' ? 'SL' : 'SL. No'}</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Vehicle No.</th>
@@ -416,41 +519,55 @@ export default function GateRegister() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-zinc-800 text-sm">
-              {currentEntries.map((entry, idx) => (
-                <tr key={idx} onDoubleClick={() => handleEdit(entry)} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors group">
-                  <td className="px-4 py-3 font-medium">{entry.slNo}</td>
-                  <td className="px-4 py-3">{entry.date}</td>
-                  <td className="px-4 py-3">{entry.vehicleNo || '-'}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{entry.partyName || '-'}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{entry.gstNo || '-'}</td>
-                  <td className="px-4 py-3 truncate max-w-[200px]" title={entry.materialDescription}>{entry.materialDescription || '-'}</td>
-                  <td className="px-4 py-3 font-semibold text-emerald-600 dark:text-emerald-400">{entry.quantityWeight || '-'}</td>
-                  <td className="px-4 py-3 text-xs">{entry.unit || '-'}</td>
-                  <td className="px-4 py-3 font-mono">{entry.rateUom || '-'}</td>
-                  <td className="px-4 py-3 font-mono">{entry.basePrice || '-'}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{entry.sgst || '-'}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{entry.cgst || '-'}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{entry.igst || '-'}</td>
-                  <td className="px-4 py-3 font-extrabold font-mono text-gray-900 dark:text-white">{entry.totalPrice || '-'}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{entry.ewayBill || '-'}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{entry.invoiceNoValue || '-'}</td>
-                  <td className="px-4 py-3 text-xs">{entry.inTime || '-'}</td>
-                  <td className="px-4 py-3 text-xs">{entry.outTime || '-'}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{entry.driverLicenceNo || '-'}</td>
-                  <td className="px-4 py-3 text-xs">{entry.contactNoSign || '-'}</td>
-                  <td className="px-4 py-3 text-xs">{entry.securitySign || '-'}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-2 opacity-100 transition-opacity">
-                      <button onClick={(e) => { e.stopPropagation(); handleEdit(entry); }} className="p-1 text-gray-500 hover:text-indigo-600 transition-colors" title="Edit">
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }} className="p-1 text-gray-500 hover:text-red-600 transition-colors" title="Delete">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {currentEntries.map((entry, idx) => {
+                const isSelected = selectedIds.includes(entry.id);
+                return (
+                  <tr key={idx} onDoubleClick={() => handleEdit(entry)} className={`hover:bg-gray-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors group ${isSelected ? 'bg-indigo-50/40 dark:bg-indigo-950/20' : ''}`}>
+                    <td className="px-3 py-3 w-8" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectRow(entry.id)}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </td>
+                    <td className="px-4 py-3 font-medium">{entry.slNo}</td>
+                    <td className="px-4 py-3">{entry.date}</td>
+                    <td className="px-4 py-3">{entry.vehicleNo || '-'}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{entry.partyName || '-'}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{entry.gstNo || '-'}</td>
+                    <td className="px-4 py-3 truncate max-w-[200px]" title={entry.materialDescription}>{entry.materialDescription || '-'}</td>
+                    <td className="px-4 py-3 font-semibold text-emerald-600 dark:text-emerald-400">{entry.quantityWeight || '-'}</td>
+                    <td className="px-4 py-3 text-xs">{entry.unit || '-'}</td>
+                    <td className="px-4 py-3 font-mono">{entry.rateUom || '-'}</td>
+                    <td className="px-4 py-3 font-mono">{entry.basePrice || '-'}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{entry.sgst || '-'}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{entry.cgst || '-'}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{entry.igst || '-'}</td>
+                    <td className="px-4 py-3 font-extrabold font-mono text-gray-900 dark:text-white">{entry.totalPrice || '-'}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{entry.ewayBill || '-'}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{entry.invoiceNoValue || '-'}</td>
+                    <td className="px-4 py-3 text-xs">{entry.inTime || '-'}</td>
+                    <td className="px-4 py-3 text-xs">{entry.outTime || '-'}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{entry.driverLicenceNo || '-'}</td>
+                    <td className="px-4 py-3 text-xs">{entry.contactNoSign || '-'}</td>
+                    <td className="px-4 py-3 text-xs">{entry.securitySign || '-'}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-1.5 opacity-100 transition-opacity">
+                        <button onClick={(e) => { e.stopPropagation(); setPrintEntry(entry); setIsPrintOpen(true); }} className="p-1 text-gray-500 hover:text-indigo-600 transition-colors" title="Print Gate Pass Voucher">
+                          <Printer className="w-4 h-4" />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); handleEdit(entry); }} className="p-1 text-gray-500 hover:text-indigo-600 transition-colors" title="Edit">
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }} className="p-1 text-gray-500 hover:text-red-600 transition-colors" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {currentEntries.length === 0 && (
                 <tr>
                   <td colSpan={22} className="px-4 py-8 text-center text-gray-500">
@@ -498,6 +615,34 @@ export default function GateRegister() {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {/* Auto Fill from PO helper */}
+              <div className="p-3 bg-indigo-50/70 dark:bg-zinc-800 rounded-xl border border-indigo-100 dark:border-zinc-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-indigo-900 dark:text-indigo-300">
+                  <ShoppingCart className="w-4 h-4 text-indigo-600" />
+                  <span>Auto-Fill Inward Entry from Purchase Order (PO)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={poNumber}
+                    onChange={(e) => handleAutoFillFromPO(e.target.value)}
+                    className="px-2.5 py-1 text-xs bg-white dark:bg-zinc-900 border border-indigo-200 dark:border-zinc-700 rounded-lg font-medium"
+                  >
+                    <option value="">-- Select PO to Auto-Fill --</option>
+                    {pos.map((p) => (
+                      <option key={p.id} value={p.poNumber}>{p.poNumber} (₹{p.amount?.toLocaleString()})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Duplicate Invoice Alert */}
+              {isDuplicateInvoice && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-xl flex items-center gap-2 text-amber-800 dark:text-amber-200 text-xs font-medium">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span><strong>Warning:</strong> Invoice number "{formData.invoiceNoValue}" has already been logged in previous gate entries. Please verify to prevent duplicate logs.</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Date</label>
@@ -611,6 +756,24 @@ export default function GateRegister() {
           </div>
         </div>
       )}
+
+      {/* Barcode & QR Code Scanner Modal */}
+      <BarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScan={(scannedCode) => {
+          setSearchTerm(scannedCode);
+          alert(`Scanned Code: ${scannedCode}. Filtering table records...`);
+        }}
+      />
+
+      {/* Printable Gate Pass Voucher Modal */}
+      <PrintGatePassModal
+        entry={printEntry}
+        companyType={companyType}
+        isOpen={isPrintOpen}
+        onClose={() => setIsPrintOpen(false)}
+      />
     </div>
   );
 }

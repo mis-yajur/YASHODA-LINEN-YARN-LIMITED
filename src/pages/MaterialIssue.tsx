@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowRightLeft, Search, Plus, Trash2, FileText, ArrowLeftRight, History, Printer, Eye, Building2, User, Calendar, CheckCircle2, Package, X, Scale, Edit2, Download, RotateCcw } from 'lucide-react';
+import { ArrowRightLeft, Search, Plus, Trash2, FileText, ArrowLeftRight, History, Printer, Eye, Building2, User, Calendar, CheckCircle2, Package, X, Scale, Edit2, Download, RotateCcw, Calculator, CheckSquare } from 'lucide-react';
 import { convertUnitQuantity, parseDateToYYYYMMDD } from '../lib/utils';
+import { UnitConverterModal } from '../components/UnitConverterModal';
 
 export default function MaterialIssue() {
   const { departments = [], items = [], stock = [], materialIssues = [], materialIssueItems = [], issueMaterial, updateMaterialIssue, deleteMaterialIssue } = useApp();
@@ -22,6 +23,37 @@ export default function MaterialIssue() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedIssueDetail, setSelectedIssueDetail] = useState<any>(null);
+  const [isConverterOpen, setIsConverterOpen] = useState(false);
+  const [selectedIssueIds, setSelectedIssueIds] = useState<string[]>([]);
+
+  const handleDatePreset = (preset: 'today' | 'yesterday' | 'thisMonth' | 'lastQuarter' | 'all') => {
+    const today = new Date();
+    if (preset === 'today') {
+      const dateStr = today.toISOString().split('T')[0];
+      setStartDate(dateStr);
+      setEndDate(dateStr);
+    } else if (preset === 'yesterday') {
+      const yest = new Date(today);
+      yest.setDate(yest.getDate() - 1);
+      const dateStr = yest.toISOString().split('T')[0];
+      setStartDate(dateStr);
+      setEndDate(dateStr);
+    } else if (preset === 'thisMonth') {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+      setStartDate(firstDay);
+      setEndDate(lastDay);
+    } else if (preset === 'lastQuarter') {
+      const qStartMonth = Math.floor(today.getMonth() / 3) * 3 - 3;
+      const qStart = new Date(today.getFullYear(), qStartMonth, 1).toISOString().split('T')[0];
+      const qEnd = new Date(today.getFullYear(), qStartMonth + 3, 0).toISOString().split('T')[0];
+      setStartDate(qStart);
+      setEndDate(qEnd);
+    } else {
+      setStartDate('');
+      setEndDate('');
+    }
+  };
 
   // Edit issue modal state
   const [editingIssue, setEditingIssue] = useState<any>(null);
@@ -994,6 +1026,11 @@ export default function MaterialIssue() {
           </div>
         </div>
       )}
+      {/* Multi-Unit Conversion Matrix Modal */}
+      <UnitConverterModal
+        isOpen={isConverterOpen}
+        onClose={() => setIsConverterOpen(false)}
+      />
     </div>
   );
 }

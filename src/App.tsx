@@ -12,6 +12,7 @@ import {
   CheckSquare, FileText
 } from 'lucide-react';
 import { cn } from './lib/utils';
+import { GlobalSearch } from './components/GlobalSearch';
 // Pages
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
@@ -65,6 +66,8 @@ function Layout({ children }: { children: React.ReactNode }) {
                 <span className="md:hidden whitespace-nowrap">ERP</span>
               </Link>
             </div>
+
+            <GlobalSearch />
             
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex flex-1 items-center space-x-1 overflow-x-auto px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
