@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { AuditLogModal } from '../components/AuditLogModal';
+import { KraPerformanceModal } from '../components/KraPerformanceModal';
 import {
   BarChart,
   Bar,
@@ -48,6 +49,7 @@ export default function Reports() {
   const [companyFilter, setCompanyFilter] = useState<'ALL' | 'Yashoda' | 'AIPL'>('ALL');
   const [dateFilter, setDateFilter] = useState<'all' | '7days' | '30days'>('all');
   const [isAuditLogOpen, setIsAuditLogOpen] = useState(false);
+  const [isKraModalOpen, setIsKraModalOpen] = useState(false);
 
   // Independent Date Range & Search Filters for Yashoda and AIPL tables
   const [yashodaStartDate, setYashodaStartDate] = useState('');
@@ -312,6 +314,13 @@ export default function Reports() {
             <option value="30days">Last 30 Days</option>
             <option value="7days">Last 7 Days</option>
           </select>
+
+          <button
+            onClick={() => setIsKraModalOpen(true)}
+            className="bg-indigo-50 hover:bg-indigo-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-zinc-700 px-3 py-2 rounded-xl flex items-center gap-1.5 transition-all text-xs font-semibold"
+          >
+            <Award className="w-4 h-4 text-indigo-600" /> 30 KRAs & SLA Matrix
+          </button>
 
           <button
             onClick={() => setIsAuditLogOpen(true)}
@@ -741,6 +750,12 @@ export default function Reports() {
       <AuditLogModal
         isOpen={isAuditLogOpen}
         onClose={() => setIsAuditLogOpen(false)}
+      />
+
+      {/* 30 KRAs Performance SLA Modal */}
+      <KraPerformanceModal
+        isOpen={isKraModalOpen}
+        onClose={() => setIsKraModalOpen(false)}
       />
     </div>
   );

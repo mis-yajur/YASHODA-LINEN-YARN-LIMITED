@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Package, IndianRupee, ArrowRightLeft, TrendingUp, ArrowRight, Calendar, Filter, Building2, Receipt, ShieldCheck, Truck } from 'lucide-react';
+import { Package, IndianRupee, ArrowRightLeft, TrendingUp, ArrowRight, Calendar, Filter, Building2, Receipt, ShieldCheck, Truck, Activity } from 'lucide-react';
+import { KraPerformanceModal } from '../components/KraPerformanceModal';
 
 function parseNumeric(val: string | number | undefined): number {
   if (val === undefined || val === null) return 0;
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [companyFilter, setCompanyFilter] = useState<'all' | 'Yashoda' | 'AIPL'>('all');
+  const [isKraModalOpen, setIsKraModalOpen] = useState(false);
 
   // Combine gate entries
   const allGateEntries = useMemo(() => {
@@ -194,6 +196,14 @@ export default function Dashboard() {
                 <option value="AIPL">Contractor AIPL</option>
               </select>
             </div>
+
+            {/* KRA SLA Metrics Button */}
+            <button
+              onClick={() => setIsKraModalOpen(true)}
+              className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-lg font-semibold flex items-center gap-1.5 shadow-sm transition-all"
+            >
+              <Activity className="w-4 h-4 text-indigo-200" /> 30 KRAs & SLA Matrix
+            </button>
 
             {/* Filter Link */}
             <Link to="/gate" className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-3 py-2 rounded-lg font-medium flex items-center gap-1.5 hover:bg-indigo-100 transition-colors">
@@ -423,6 +433,12 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* KraPerformanceModal */}
+      <KraPerformanceModal
+        isOpen={isKraModalOpen}
+        onClose={() => setIsKraModalOpen(false)}
+      />
     </div>
   );
 }
