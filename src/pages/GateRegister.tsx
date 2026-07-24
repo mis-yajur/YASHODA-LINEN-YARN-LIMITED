@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn, Edit, Trash2, MoreVertical } from 'lucide-react';
 import { CSVUploader } from '../components/CSVUploader';
@@ -7,7 +7,7 @@ import { GateEntry } from '../types';
 
 
 export default function GateRegister() {
-  const { gateEntriesYashoda = [], gateEntriesAIPL = [], addGateEntry, updateGateEntry, deleteGateEntry, clearAllGateEntries } = useApp();
+  const { items = [], gateEntriesYashoda = [], gateEntriesAIPL = [], addGateEntry, updateGateEntry, deleteGateEntry, clearAllGateEntries } = useApp();
   const [editId, setEditId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [companyType, setCompanyType] = useState<'AIPL' | 'Yashoda'>('Yashoda');
