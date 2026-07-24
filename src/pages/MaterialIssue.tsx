@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { ArrowRightLeft, Search, Plus, Trash2, FileText, ArrowLeftRight, History, Printer, Eye, Building2, User, Calendar, CheckCircle2, Package, X, Scale, Edit2 } from 'lucide-react';
+import { ArrowRightLeft, Search, Plus, Trash2, FileText, ArrowLeftRight, History, Printer, Eye, Building2, User, Calendar, CheckCircle2, Package, X, Scale, Edit2, Download, RotateCcw } from 'lucide-react';
 import { convertUnitQuantity } from '../lib/utils';
 
 export default function MaterialIssue() {
@@ -19,6 +19,8 @@ export default function MaterialIssue() {
   // History & Filter state
   const [historySearch, setHistorySearch] = useState('');
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [selectedIssueDetail, setSelectedIssueDetail] = useState<any>(null);
 
   // Edit issue modal state
@@ -157,6 +159,22 @@ export default function MaterialIssue() {
       list = list.filter(i => i.departmentId === selectedDeptFilter);
     }
 
+    if (startDate) {
+      list = list.filter(i => {
+        if (!i.date) return false;
+        const d = i.date.split('T')[0];
+        return d >= startDate;
+      });
+    }
+
+    if (endDate) {
+      list = list.filter(i => {
+        if (!i.date) return false;
+        const d = i.date.split('T')[0];
+        return d <= endDate;
+      });
+    }
+
     if (historySearch.trim()) {
       const q = historySearch.toLowerCase();
       list = list.filter(i => {
@@ -172,7 +190,39 @@ export default function MaterialIssue() {
     }
 
     return list;
-  }, [materialIssues, materialIssueItems, selectedDeptFilter, historySearch, items]);
+  }, [materialIssues, materialIssueItems, selectedDeptFilter, startDate, endDate, historySearch, items]);
+
+  const handleExportCSV = () => {
+    const headers = ['Ref ID', 'Date & Time', 'Department', 'Issued By', 'Received By', 'Issued Materials Breakdown', 'Status'];
+    const rows = filteredHistory.map(issue => {
+      const dateStr = issue.date ? new Date(issue.date).toLocaleString('en-IN') : '-';
+      const itemsBreakdown = (issue.items || []).map((item: any) => {
+        const matchedItem = items.find(it => it.id === item.itemId);
+        const name = matchedItem ? matchedItem.name : item.itemId;
+        const unit = item.unit || matchedItem?.uom || 'Kgs';
+        return `${name}: ${item.quantity} ${unit}`;
+      }).join(' | ');
+
+      return [
+        `"#${issue.id.substring(0, 8)}"`,
+        `"${dateStr}"`,
+        `"${issue.departmentId || ''}"`,
+        `"${issue.issuedBy || ''}"`,
+        `"${issue.receivedBy || ''}"`,
+        `"${itemsBreakdown}"`,
+        `"Issued & Stock Deducted"`
+      ].join(',');
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `material_issue_history_${startDate || 'all'}_to_${endDate || 'all'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Aggregate stats for History
   const totalQuantityIssued = useMemo(() => {
@@ -422,10 +472,46 @@ export default function MaterialIssue() {
                   <Plus className="w-4 h-4" /> Add Issue Entry
                 </button>
 
+                <button
+                  onClick={handleExportCSV}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+                  title="Export filtered issue history to CSV"
+                >
+                  <Download className="w-4 h-4" /> Download CSV
+                </button>
+
+                <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-zinc-800 p-1.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs">
+                  <Calendar className="w-3.5 h-3.5 text-gray-400 ml-1" />
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    className="bg-transparent text-xs font-medium outline-none text-gray-700 dark:text-gray-300"
+                    title="Start Date"
+                  />
+                  <span className="text-gray-400 font-bold">to</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={e => setEndDate(e.target.value)}
+                    className="bg-transparent text-xs font-medium outline-none text-gray-700 dark:text-gray-300"
+                    title="End Date"
+                  />
+                  {(startDate || endDate) && (
+                    <button
+                      onClick={() => { setStartDate(''); setEndDate(''); }}
+                      className="p-1 text-gray-400 hover:text-red-500 rounded"
+                      title="Clear Date Filter"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
                 <select
                   value={selectedDeptFilter}
                   onChange={e => setSelectedDeptFilter(e.target.value)}
-                  className="p-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 text-xs outline-none"
+                  className="p-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 text-xs outline-none font-medium"
                 >
                   <option value="ALL">All Departments</option>
                   {departments.map(d => (
@@ -433,7 +519,7 @@ export default function MaterialIssue() {
                   ))}
                 </select>
 
-                <div className="relative flex-1 sm:w-64">
+                <div className="relative flex-1 sm:w-56">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <input
                     type="text"
@@ -600,9 +686,13 @@ export default function MaterialIssue() {
           <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-6">
             <div className="flex justify-between items-start border-b border-gray-100 dark:border-zinc-800 pb-4">
               <div>
-                <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Yashoda Linen Yarn Ltd</div>
-                <h3 className="text-xl font-black text-gray-900 dark:text-white">Store Material Issue Voucher</h3>
-                <p className="text-xs text-gray-500">Voucher Ref: #{selectedIssueDetail.id}</p>
+                <h2 className="text-2xl font-black text-indigo-700 dark:text-indigo-400 uppercase tracking-wide">
+                  Yashoda Linen Yarn Ltd
+                </h2>
+                <h3 className="text-xs font-bold text-gray-700 dark:text-gray-300 mt-0.5">
+                  Store Material Issue Voucher
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">Voucher Ref: #{selectedIssueDetail.id}</p>
               </div>
               <button
                 onClick={() => setSelectedIssueDetail(null)}

@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn, Edit, Trash2, MoreVertical } from 'lucide-react';
+import { Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn, Edit, Trash2, MoreVertical, Calendar, RotateCcw } from 'lucide-react';
 import { CSVUploader } from '../components/CSVUploader';
 import { GateEntry } from '../types';
-
-
 
 export default function GateRegister() {
   const { items = [], gateEntriesYashoda = [], gateEntriesAIPL = [], addGateEntry, updateGateEntry, deleteGateEntry, clearAllGateEntries } = useApp();
   const [editId, setEditId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [companyType, setCompanyType] = useState<'AIPL' | 'Yashoda'>('Yashoda');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const handleBulkUpload = async (data: any[]) => {
@@ -93,11 +93,23 @@ export default function GateRegister() {
 
   const allEntries = [...(companyType === 'Yashoda' ? (gateEntriesYashoda || []) : (gateEntriesAIPL || []))].reverse();
 
-  const filteredEntries = (allEntries || []).filter(entry => 
-    (entry?.partyName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (entry?.materialDescription || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (entry?.vehicleNo || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEntries = (allEntries || []).filter(entry => {
+    const matchesSearch = 
+      (entry?.partyName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (entry?.materialDescription || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (entry?.vehicleNo || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    if (startDate) {
+      if (!entry.date || entry.date < startDate) return false;
+    }
+    if (endDate) {
+      if (!entry.date || entry.date > endDate) return false;
+    }
+
+    return true;
+  });
 
   const ITEMS_PER_PAGE = 100;
   const [currentPage, setCurrentPage] = useState(1);
@@ -342,9 +354,34 @@ export default function GateRegister() {
               className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
-          <button onClick={() => alert('Filter By Date coming soon!')} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg whitespace-nowrap">
-            <Filter className="w-4 h-4" /> Filter By Date
-          </button>
+          <div className="flex items-center gap-2 bg-gray-50 dark:bg-zinc-800 p-2 rounded-lg border border-gray-200 dark:border-zinc-700 text-xs">
+            <Calendar className="w-4 h-4 text-gray-400" />
+            <span className="text-gray-500 font-semibold hidden md:inline">Date:</span>
+            <input 
+              type="date"
+              value={startDate}
+              onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
+              className="bg-transparent text-xs font-medium outline-none text-gray-700 dark:text-gray-300"
+              title="Start Date"
+            />
+            <span className="text-gray-400 font-bold">to</span>
+            <input 
+              type="date"
+              value={endDate}
+              onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+              className="bg-transparent text-xs font-medium outline-none text-gray-700 dark:text-gray-300"
+              title="End Date"
+            />
+            {(startDate || endDate) && (
+              <button 
+                onClick={() => { setStartDate(''); setEndDate(''); setCurrentPage(1); }} 
+                className="p-1 text-gray-400 hover:text-red-500 rounded"
+                title="Clear Date Filter"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="overflow-x-auto">
