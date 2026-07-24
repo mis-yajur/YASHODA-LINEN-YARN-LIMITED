@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import Papa from 'papaparse';
 import { useApp } from '../context/AppContext';
 import { Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn, Edit, Trash2, MoreVertical, Calendar, RotateCcw } from 'lucide-react';
 import { CSVUploader } from '../components/CSVUploader';
@@ -127,27 +128,21 @@ export default function GateRegister() {
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const text = evt.target?.result;
-      if (typeof text !== 'string') return;
-      
-      const rows = text.split('\n').map(row => row.split(',').map(cell => cell.replace(/^"|"$/g, '').trim()));
-      
-      if (rows.length > 1) {
+
+    Papa.parse(file, {
+      skipEmptyLines: true,
+      complete: async (results) => {
         try {
-          let currentSlNo = allEntries.length;
-          for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            if (row.length < 4) continue;
-            currentSlNo++;
-            
-            // Adjust mapping based on companyType
-            let entry = {};
-            if (true) {
-              entry = {
-                
-                slNo: currentSlNo.toString(),
+          const rows = results.data as string[][];
+          if (rows && rows.length > 1) {
+            let currentSlNo = allEntries.length;
+            for (let i = 1; i < rows.length; i++) {
+              const row = rows[i];
+              if (!row || row.length < 3) continue;
+              currentSlNo++;
+
+              const entry = {
+                slNo: row[0] || currentSlNo.toString(),
                 date: row[1] || '',
                 vehicleNo: row[2] || '',
                 partyName: row[3] || '',
@@ -169,19 +164,23 @@ export default function GateRegister() {
                 contactNoSign: row[19] || '',
                 securitySign: row[20] || ''
               };
+              await addGateEntry(entry as any, companyType);
             }
-            await addGateEntry(entry as any, companyType);
+            alert("Import successful");
           }
-          alert("Import successful");
         } catch (error) {
           console.error('Import failed', error);
           alert('Import failed. Please check the CSV format.');
         } finally {
           e.target.value = '';
         }
+      },
+      error: (error) => {
+        console.error('CSV Parsing error:', error);
+        alert('Failed to parse CSV file');
+        e.target.value = '';
       }
-    };
-    reader.readAsText(file);
+    });
   };
 
   const handleEdit = (entry: GateEntry) => {
