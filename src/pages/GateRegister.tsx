@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Search, Filter, Download, Plus, MapPin, X, ExternalLink, LogIn, Edit, Trash2, MoreVertical, Calendar, RotateCcw } from 'lucide-react';
 import { CSVUploader } from '../components/CSVUploader';
 import { GateEntry } from '../types';
+import { parseDateToYYYYMMDD } from '../lib/utils';
 
 export default function GateRegister() {
   const { items = [], gateEntriesYashoda = [], gateEntriesAIPL = [], addGateEntry, updateGateEntry, deleteGateEntry, clearAllGateEntries } = useApp();
@@ -101,11 +102,13 @@ export default function GateRegister() {
 
     if (!matchesSearch) return false;
 
+    const parsedEntryDate = parseDateToYYYYMMDD(entry.date);
+
     if (startDate) {
-      if (!entry.date || entry.date < startDate) return false;
+      if (!parsedEntryDate || parsedEntryDate < startDate) return false;
     }
     if (endDate) {
-      if (!entry.date || entry.date > endDate) return false;
+      if (!parsedEntryDate || parsedEntryDate > endDate) return false;
     }
 
     return true;

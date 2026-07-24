@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { ArrowRightLeft, Search, Plus, Trash2, FileText, ArrowLeftRight, History, Printer, Eye, Building2, User, Calendar, CheckCircle2, Package, X, Scale, Edit2, Download, RotateCcw } from 'lucide-react';
-import { convertUnitQuantity } from '../lib/utils';
+import { convertUnitQuantity, parseDateToYYYYMMDD } from '../lib/utils';
 
 export default function MaterialIssue() {
   const { departments = [], items = [], stock = [], materialIssues = [], materialIssueItems = [], issueMaterial, updateMaterialIssue, deleteMaterialIssue } = useApp();
@@ -162,7 +162,7 @@ export default function MaterialIssue() {
     if (startDate) {
       list = list.filter(i => {
         if (!i.date) return false;
-        const d = i.date.split('T')[0];
+        const d = parseDateToYYYYMMDD(i.date);
         return d >= startDate;
       });
     }
@@ -170,7 +170,7 @@ export default function MaterialIssue() {
     if (endDate) {
       list = list.filter(i => {
         if (!i.date) return false;
-        const d = i.date.split('T')[0];
+        const d = parseDateToYYYYMMDD(i.date);
         return d <= endDate;
       });
     }

@@ -62,3 +62,40 @@ export function convertUnitQuantity(qty: number, fromUnit?: string, toUnit?: str
 
   return qty;
 }
+
+export function parseDateToYYYYMMDD(rawDate: any): string {
+  if (!rawDate) return '';
+  const str = String(rawDate).trim();
+  if (!str) return '';
+
+  // ISO date or standard YYYY-MM-DD or YYYY/MM/DD
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(str)) {
+    const cleanStr = str.split(/[T ]/)[0];
+    const parts = cleanStr.split(/[-/]/);
+    const yyyy = parts[0];
+    const mm = parts[1].padStart(2, '0');
+    const dd = parts[2].padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // DD-MM-YYYY or DD/MM/YYYY
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}/.test(str)) {
+    const cleanStr = str.split(/[T ]/)[0];
+    const parts = cleanStr.split(/[-/]/);
+    const dd = parts[0].padStart(2, '0');
+    const mm = parts[1].padStart(2, '0');
+    const yyyy = parts[2];
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // JS Date fallback
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return str;
+}
