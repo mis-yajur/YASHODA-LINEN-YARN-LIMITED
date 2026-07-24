@@ -36,18 +36,35 @@ export default function Inventory() {
   const [activeTab, setActiveTab] = useState<'stock' | 'gateInward' | 'items' | 'transfers' | 'adjustments'>('stock');
   const [itemMasterSubTab, setItemMasterSubTab] = useState<'catalog' | 'gateLogs'>('catalog');
   const [stockUnitMode, setStockUnitMode] = useState<'TON' | 'KGS' | 'NATIVE'>('NATIVE');
+  const [selectedCompany, setSelectedCompany] = useState<'All' | 'Yashoda' | 'AIPL'>('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'item' | 'transfer' | 'adjustment'>('item');
   const [editingGateEntry, setEditingGateEntry] = useState<any>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Process Yashoda Gate Entries for Inventory Inward Stock and Item Master
-  const yashodaGateEntries = useMemo(() => {
-    return (gateEntriesYashoda || []).map(e => ({ ...e, companyType: 'Yashoda' as const }));
-  }, [gateEntriesYashoda]);
+  // Process Gate Entries for Inventory Inward Stock and Item Master (Yashoda & Contractor AIPL Store)
+  const allGateEntries = useMemo(() => {
+    const yashoda = (gateEntriesYashoda || []).map(e => ({ 
+      ...e, 
+      companyType: 'Yashoda' as const,
+      companyLabel: 'Yashoda Linen Yarn Ltd'
+    }));
+    const aipl = (gateEntriesAIPL || []).map(e => ({ 
+      ...e, 
+      companyType: 'AIPL' as const,
+      companyLabel: 'Contractor AIPL Store'
+    }));
+    return [...yashoda, ...aipl];
+  }, [gateEntriesYashoda, gateEntriesAIPL]);
 
-  // Aggregate Yashoda Gate Entries by Material Description for Inward Stock
+  const activeGateEntries = useMemo(() => {
+    if (selectedCompany === 'Yashoda') return allGateEntries.filter(e => e.companyType === 'Yashoda');
+    if (selectedCompany === 'AIPL') return allGateEntries.filter(e => e.companyType === 'AIPL');
+    return allGateEntries;
+  }, [allGateEntries, selectedCompany]);
+
+  // Aggregate Gate Entries by Material Description for Inward Stock based on selected company
   const gateInwardStockSummary = useMemo(() => {
     const map: Record<string, {
       materialDescription: string;
@@ -62,7 +79,7 @@ export default function Inventory() {
       companies: Set<string>;
     }> = {};
 
-    yashodaGateEntries.forEach(entry => {
+    activeGateEntries.forEach(entry => {
       const matName = (entry.materialDescription || 'Unspecified Material').trim();
       const key = matName.toLowerCase();
 
@@ -92,11 +109,11 @@ export default function Inventory() {
       map[key].totalValue += total;
       map[key].entryCount += 1;
       if (entry.partyName) map[key].partyNames.add(entry.partyName);
-      if (entry.companyType) map[key].companies.add(entry.companyType);
+      if (entry.companyLabel) map[key].companies.add(entry.companyLabel);
       if (entry.date) map[key].lastDate = entry.date;
     });
 
-    // Round total values cleanly to prevent float precision issues (e.g., .619999999999)
+    // Round total values cleanly to prevent float precision issues
     Object.values(map).forEach(item => {
       item.totalQty = Math.round((item.totalQty + Number.EPSILON) * 100) / 100;
       item.totalBasePrice = Math.round((item.totalBasePrice + Number.EPSILON) * 100) / 100;
@@ -105,7 +122,7 @@ export default function Inventory() {
     });
 
     return Object.values(map);
-  }, [yashodaGateEntries]);
+  }, [activeGateEntries]);
 
   // Dynamic Live Stock & Valuation: Gate Inwards (Addition) - Material Issues (Reduction)
   const liveCurrentStock = useMemo(() => {
@@ -217,14 +234,16 @@ export default function Inventory() {
     return Object.values(map);
   }, [gateInwardStockSummary, items, materialIssueItems]);
 
-  // Sync Yashoda Gate Entries to Item Master & Current Stock
+  // Sync Gate Entries to Item Master & Current Stock
   const handleSyncGateEntriesToInventory = async () => {
     if (gateInwardStockSummary.length === 0) {
-      alert('No Yashoda Gate Entry records available to sync.');
+      alert('No Gate Entry records available to sync.');
       return;
     }
 
-    if (!window.confirm(`Sync ${gateInwardStockSummary.length} material categories from Yashoda Gate Register into Item Master & Current Stock?`)) {
+    const companyName = selectedCompany === 'Yashoda' ? 'Yashoda' : selectedCompany === 'AIPL' ? 'Contractor AIPL Store' : 'All Companies';
+
+    if (!window.confirm(`Sync ${gateInwardStockSummary.length} material categories from ${companyName} Gate Register into Item Master & Current Stock?`)) {
       return;
     }
 
@@ -241,14 +260,14 @@ export default function Inventory() {
         let itemId = existingItem?.id;
 
         if (!existingItem) {
-          const sku = 'YASH-' + Math.floor(1000 + Math.random() * 9000);
+          const sku = 'SKU-' + Math.floor(1000 + Math.random() * 9000);
           const newItem = {
             name: summary.materialDescription,
             sku,
             uom: summary.unit || 'Kgs',
-            categoryId: 'Yashoda Raw Material',
+            categoryId: 'Raw Material',
             reorderLevel: 10,
-            type: 'Yashoda Inward'
+            type: 'Gate Inward'
           };
           await addItem(newItem);
           createdCount++;
@@ -259,13 +278,13 @@ export default function Inventory() {
           const matched = items.find(i => (i.name || '').toLowerCase() === summary.materialDescription.toLowerCase());
           const finalItemId = matched?.id || itemId || summary.materialDescription;
           if (receiveStock) {
-            await receiveStock(finalItemId, targetWarehouseId, summary.totalQty, 'YASHODA-GATE-INWARD');
+            await receiveStock(finalItemId, targetWarehouseId, summary.totalQty, 'GATE-INWARD-SYNC');
             stockCount++;
           }
         }
       }
 
-      alert(`Yashoda Gate Entry Sync Complete!\n• ${createdCount} new items added to Item Master.\n• ${stockCount} stock entries updated.`);
+      alert(`Gate Entry Sync Complete!\n• ${createdCount} new items added to Item Master.\n• ${stockCount} stock entries updated.`);
     } catch (e: any) {
       console.error(e);
       alert('Error during sync: ' + (e.message || 'Failed'));
@@ -290,8 +309,8 @@ export default function Inventory() {
     alert('Bulk upload completed');
   };
 
-  // Item Master List - Derived directly from Yashoda Gate Entry Register & Catalog
-  const yashodaItemMasterList = useMemo(() => {
+  // Item Master List - Derived directly from Gate Entry Register (Yashoda & Contractor AIPL Store) & Catalog
+  const activeItemMasterList = useMemo(() => {
     const map: Record<string, {
       id: string;
       itemDescription: string;
@@ -299,18 +318,19 @@ export default function Inventory() {
       categoryType: string;
       uom: string;
       company: string;
+      companyType: 'Yashoda' | 'AIPL' | 'Both';
     }> = {};
 
-    // 1. Populate directly from Yashoda Gate Entry Register
-    (yashodaGateEntries || []).forEach(entry => {
+    // 1. Populate directly from active Gate Entry Register
+    (activeGateEntries || []).forEach(entry => {
       const desc = (entry.materialDescription || '').trim();
       if (!desc) return;
       const key = desc.toLowerCase();
 
       if (!map[key]) {
-        // Deterministic clean SKU code generator
         const skuHash = Math.abs(key.split('').reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) | 0, 0)) % 9000 + 1000;
-        const skuCode = 'YASH-' + desc.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X') + '-' + skuHash;
+        const prefix = entry.companyType === 'AIPL' ? 'AIPL-' : 'YASH-';
+        const skuCode = prefix + desc.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X') + '-' + skuHash;
 
         map[key] = {
           id: entry.id || 'gate-' + key,
@@ -318,10 +338,15 @@ export default function Inventory() {
           skuCode: skuCode,
           categoryType: 'Raw Material / Store Item',
           uom: entry.unit || 'Kgs',
-          company: 'Yashoda Linen Yarn Ltd'
+          company: entry.companyLabel || (entry.companyType === 'AIPL' ? 'Contractor AIPL Store' : 'Yashoda Linen Yarn Ltd'),
+          companyType: entry.companyType
         };
       } else {
         if (entry.unit) map[key].uom = entry.unit;
+        if (map[key].companyType !== entry.companyType) {
+          map[key].company = 'Yashoda & Contractor AIPL Store';
+          map[key].companyType = 'Both';
+        }
       }
     });
 
@@ -335,10 +360,11 @@ export default function Inventory() {
         map[key] = {
           id: item.id,
           itemDescription: desc,
-          skuCode: item.sku || ('YASH-' + Math.floor(1000 + Math.random() * 9000)),
+          skuCode: item.sku || ('SKU-' + Math.floor(1000 + Math.random() * 9000)),
           categoryType: item.categoryId || item.type || 'Raw Material',
           uom: item.uom || 'Kgs',
-          company: 'Yashoda Linen Yarn Ltd'
+          company: 'Master Catalog',
+          companyType: 'Yashoda'
         };
       } else {
         if (item.sku) map[key].skuCode = item.sku;
@@ -348,19 +374,19 @@ export default function Inventory() {
     });
 
     return Object.values(map);
-  }, [yashodaGateEntries, items]);
+  }, [activeGateEntries, items]);
 
   const filteredItemMasterList = useMemo(() => {
-    return yashodaItemMasterList.filter(item =>
+    return activeItemMasterList.filter(item =>
       item.itemDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.skuCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.categoryType.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.uom.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.company.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [yashodaItemMasterList, searchTerm]);
+  }, [activeItemMasterList, searchTerm]);
 
-  const filteredYashodaGateItems = yashodaGateEntries.filter(entry =>
+  const filteredActiveGateItems = activeGateEntries.filter(entry =>
     (entry.materialDescription || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (entry.partyName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (entry.vehicleNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -444,37 +470,71 @@ export default function Inventory() {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val);
   };
 
-  const handleEditYashodaItem = (entry: any) => {
+  const handleEditGateItem = (entry: any) => {
     setEditingGateEntry(entry);
     setModalType('item');
     setIsModalOpen(true);
   };
 
-  const handleDeleteYashodaItem = async (id: string, description: string) => {
-    if (window.confirm(`Are you sure you want to delete "${description || 'this item'}" from Yashoda Item Master?`)) {
+  const handleDeleteGateItem = async (id: string, description: string, companyType: 'Yashoda' | 'AIPL' = 'Yashoda') => {
+    if (window.confirm(`Are you sure you want to delete "${description || 'this item'}" from ${companyType === 'AIPL' ? 'Contractor AIPL Store' : 'Yashoda'} Gate Register?`)) {
       if (deleteGateEntry) {
-        await deleteGateEntry(id, 'Yashoda');
+        await deleteGateEntry(id, companyType);
       }
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Inventory & Stock Management</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Manage stock levels, Item Masters, and Gate Entry inward receipts</p>
+          <p className="text-xs text-gray-500 mt-0.5">Manage stock levels, Item Masters, and Gate Entry inward receipts across Yashoda & Contractor AIPL Store</p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Company Selector Button Group */}
+          <div className="flex items-center bg-gray-100 dark:bg-zinc-800 p-1 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs font-medium">
+            <button
+              onClick={() => setSelectedCompany('All')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                selectedCompany === 'All'
+                  ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 font-bold shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+              }`}
+            >
+              All Companies ({allGateEntries.length})
+            </button>
+            <button
+              onClick={() => setSelectedCompany('Yashoda')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                selectedCompany === 'Yashoda'
+                  ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 font-bold shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+              }`}
+            >
+              Yashoda ({gateEntriesYashoda.length})
+            </button>
+            <button
+              onClick={() => setSelectedCompany('AIPL')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                selectedCompany === 'AIPL'
+                  ? 'bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 font-bold shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+              }`}
+            >
+              Contractor AIPL ({gateEntriesAIPL.length})
+            </button>
+          </div>
+
           <button 
             onClick={handleSyncGateEntriesToInventory}
             disabled={isSyncing}
-            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium shadow-sm"
-            title="Import/sync quantities and values from Yashoda Gate Register into Inventory Stock and Item Master"
+            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-lg flex items-center gap-2 transition-colors text-xs font-semibold shadow-sm"
+            title="Import/sync quantities and values from Gate Register into Inventory Stock and Item Master"
           >
-            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            Sync Yashoda Gate Entries to Stock
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            Sync Gate Entries to Stock
           </button>
 
           {activeTab === 'items' && (
@@ -482,9 +542,9 @@ export default function Inventory() {
               <CSVUploader onUpload={handleBulkUpload} />
               <button 
                 onClick={() => { setEditingGateEntry(null); setModalType('item'); setIsModalOpen(true); }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-lg flex items-center gap-2 transition-colors text-xs font-semibold"
               >
-                <Plus className="w-4 h-4" /> Add Yashoda Item
+                <Plus className="w-3.5 h-3.5" /> Add Item
               </button>
             </div>
           )}
@@ -502,13 +562,13 @@ export default function Inventory() {
           onClick={() => setActiveTab('gateInward')}
           className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'gateInward' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
         >
-          <Truck className="w-4 h-4 text-emerald-500" /> Yashoda Gate Inward ({gateInwardStockSummary.length})
+          <Truck className="w-4 h-4 text-emerald-500" /> Gate Inward Stock ({gateInwardStockSummary.length})
         </button>
         <button
           onClick={() => setActiveTab('items')}
           className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'items' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
         >
-          <Package className="w-4 h-4 text-indigo-500" /> Yashoda Item Master ({yashodaGateEntries.length})
+          <Package className="w-4 h-4 text-indigo-500" /> Item Master ({activeItemMasterList.length})
         </button>
         <button
           onClick={() => setActiveTab('transfers')}
@@ -533,7 +593,7 @@ export default function Inventory() {
                 Item Master Dashboard
               </h2>
               <p className="text-xs text-gray-500">
-                Central catalog of items, SKUs, reorder levels, and live Yashoda stock levels
+                Central catalog of items, SKUs, reorder levels, and live stock levels across Yashoda & Contractor AIPL Store
               </p>
             </div>
 
@@ -547,7 +607,7 @@ export default function Inventory() {
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  Item Catalog Master ({items.length})
+                  Item Catalog Master ({activeItemMasterList.length})
                 </button>
                 <button
                   onClick={() => setItemMasterSubTab('gateLogs')}
@@ -557,7 +617,7 @@ export default function Inventory() {
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  Yashoda Gate Log Register ({yashodaGateEntries.length})
+                  Gate Log Register ({activeGateEntries.length})
                 </button>
               </div>
 
@@ -583,7 +643,7 @@ export default function Inventory() {
                     <th className="px-4 py-3">SKU Code</th>
                     <th className="px-4 py-3">Category / Type</th>
                     <th className="px-4 py-3">UOM</th>
-                    <th className="px-4 py-3">Company</th>
+                    <th className="px-4 py-3">Company Source</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -604,7 +664,11 @@ export default function Inventory() {
                           {item.uom}
                         </td>
                         <td className="px-4 py-3 font-medium">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                            item.companyType === 'AIPL' 
+                              ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                              : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
+                          }`}>
                             {item.company}
                           </span>
                         </td>
@@ -627,7 +691,7 @@ export default function Inventory() {
                   {filteredItemMasterList.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                        No items found in Item Master Catalog. Items are populated automatically from Yashoda Gate Entry Register.
+                        No items found in Item Master Catalog. Items are populated automatically from Gate Entry Register entries.
                       </td>
                     </tr>
                   )}
@@ -639,6 +703,7 @@ export default function Inventory() {
               <table className="w-full text-left whitespace-nowrap text-xs">
                 <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <tr>
+                    <th className="px-4 py-3">Company</th>
                     <th className="px-4 py-3">SL. No</th>
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Vehicle No.</th>
@@ -664,8 +729,17 @@ export default function Inventory() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                  {filteredYashodaGateItems.map(item => (
+                  {filteredActiveGateItems.map(item => (
                     <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          item.companyType === 'AIPL' 
+                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                            : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300'
+                        }`}>
+                          {item.companyLabel || item.companyType || 'Yashoda'}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 font-medium">{item.slNo || '-'}</td>
                       <td className="px-4 py-3">{item.date || '-'}</td>
                       <td className="px-4 py-3">{item.vehicleNo || '-'}</td>
@@ -692,14 +766,14 @@ export default function Inventory() {
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-2">
                           <button 
-                            onClick={() => handleEditYashodaItem(item)}
+                            onClick={() => handleEditGateItem(item)}
                             className="p-1 text-gray-500 hover:text-indigo-600 transition-colors"
                             title="Edit Item"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button 
-                            onClick={() => handleDeleteYashodaItem(item.id, item.materialDescription)}
+                            onClick={() => handleDeleteGateItem(item.id, item.materialDescription, item.companyType || 'Yashoda')}
                             className="p-1 text-gray-500 hover:text-red-600 transition-colors"
                             title="Delete Item"
                           >
@@ -709,10 +783,10 @@ export default function Inventory() {
                       </td>
                     </tr>
                   ))}
-                  {filteredYashodaGateItems.length === 0 && (
+                  {filteredActiveGateItems.length === 0 && (
                     <tr>
-                      <td colSpan={22} className="px-6 py-8 text-center text-gray-500">
-                        No Yashoda items found in Gate Entry Log Register.
+                      <td colSpan={23} className="px-6 py-8 text-center text-gray-500">
+                        No items found in Gate Entry Log Register for selected company.
                       </td>
                     </tr>
                   )}
@@ -730,10 +804,10 @@ export default function Inventory() {
             <div>
               <h2 className="text-lg font-bold flex items-center gap-2">
                 <Truck className="w-5 h-5 text-emerald-500" />
-                Yashoda Inward Received Quantities & Values
+                Inward Received Quantities & Values ({selectedCompany === 'Yashoda' ? 'Yashoda' : selectedCompany === 'AIPL' ? 'Contractor AIPL Store' : 'All Companies'})
               </h2>
               <p className="text-xs text-gray-500">
-                Captured exclusively from Yashoda Linen Yarn Ltd Gate Register entries
+                Captured directly from Gate Register inward entries
               </p>
             </div>
 
@@ -753,7 +827,7 @@ export default function Inventory() {
             <div className="bg-indigo-50/60 dark:bg-indigo-950/20 px-4 py-2 border-b border-indigo-100 dark:border-indigo-900/30 flex justify-between items-center text-xs">
               <span className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
                 <Package className="w-4 h-4 text-indigo-600" />
-                Yashoda Store Data Table (Connected to Yashoda Item Master & Current Stock)
+                Store Inward Summary (Connected to Item Master & Current Stock)
               </span>
               <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
                 {filteredGateSummary.length} Material Categories
@@ -781,9 +855,17 @@ export default function Inventory() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
-                        Yashoda
-                      </span>
+                      <div className="flex gap-1 flex-wrap">
+                        {Array.from(sum.companies).map((comp: string, cIdx) => (
+                          <span key={cIdx} className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            String(comp).includes('AIPL')
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                              : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300'
+                          }`}>
+                            {String(comp)}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
                       {sum.totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 })} {sum.unit}
@@ -807,7 +889,7 @@ export default function Inventory() {
                 {filteredGateSummary.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                      No Yashoda Gate Register inward stock entries found.
+                      No Gate Register inward stock entries found for selected company.
                     </td>
                   </tr>
                 )}
