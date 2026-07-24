@@ -44,18 +44,21 @@
       "required": ["name", "type"]
     },
     "item": {
-      "title": "Item",
-      "description": "Represents an inventory item",
+      "title": "Item Master",
+      "description": "Represents an Item Master record in catalog",
       "type": "object",
       "properties": {
-        "categoryId": { "type": "string" },
-        "name": { "type": "string" },
-        "sku": { "type": "string" },
+        "itemCode": { "type": "string" },
+        "itemName": { "type": "string" },
+        "itemCategory": { "type": "string" },
+        "itemType": { "type": "string" },
         "uom": { "type": "string" },
-        "reorderLevel": { "type": "number" },
-        "type": { "type": "string" }
+        "warehouse": { "type": "string" },
+        "batchTracking": { "type": "string" },
+        "serialTracking": { "type": "string" },
+        "status": { "type": "string" }
       },
-      "required": ["name", "sku"]
+      "required": ["itemCode", "itemName"]
     },
     "supplier": {
       "title": "Supplier",

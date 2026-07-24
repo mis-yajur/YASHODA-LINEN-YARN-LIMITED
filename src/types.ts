@@ -18,17 +18,22 @@ export interface Supplier {
 
 export interface Item {
   id: string;
-  itemCode?: string;
-  sku?: string;
-  name: string;
-  categoryId?: string;
-  category?: string;
-  type?: 'Stock Item' | 'Non-Stock Item' | 'Service' | string;
+  itemCode: string;
+  itemName: string;
+  itemCategory: string;
+  itemType: 'Stock Item' | 'Non-Stock Item' | 'Service' | string;
   uom: string; // Kg, Nos, Ltr, Mtr, Roll, Bag, Box, Set, Pair, Drum
-  warehouse?: string;
-  batchTracking?: boolean | string; // Yes/No
-  serialTracking?: boolean | string; // Yes/No
-  status?: 'Active' | 'Inactive' | string;
+  warehouse: string;
+  batchTracking: 'Yes' | 'No' | boolean | string;
+  serialTracking: 'Yes' | 'No' | boolean | string;
+  status: 'Active' | 'Inactive' | string;
+
+  // Legacy aliases for backward compatibility
+  sku?: string;
+  name?: string;
+  category?: string;
+  categoryId?: string;
+  type?: string;
   reorderLevel?: number;
 }
 
