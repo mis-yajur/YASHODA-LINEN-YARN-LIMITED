@@ -67,8 +67,6 @@ function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             </div>
 
-            <GlobalSearch />
-            
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex flex-1 items-center space-x-1 overflow-x-auto px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {navItems.map((item) => (
